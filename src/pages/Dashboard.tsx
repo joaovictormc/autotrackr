@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AppBar,
@@ -14,6 +14,9 @@ import {
   Toolbar,
   Typography,
   useTheme,
+  CircularProgress,
+  Alert,
+  Paper,
 } from '@mui/material';
 import { DataGrid, ptBR } from '@mui/x-data-grid';
 import { 
@@ -27,11 +30,22 @@ import {
   TrendingUp,
   User,
   Wrench,
-  Calendar
+  Calendar,
+  RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 import SettingsMenu from '../components/SettingsMenu';
 import ProfileMenu from '../components/ProfileMenu';
+
+interface Vehicle {
+  id: string;
+  brand: string;
+  model: string;
+  plate: string;
+  year: number;
+  mileage: number;
+}
 
 interface StatCardProps {
   icon: React.ElementType;
@@ -78,10 +92,13 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, title, value, color, on
 export default function Dashboard() {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   
   const [settingsAnchorEl, setSettingsAnchorEl] = useState<null | HTMLElement>(null);
   const [profileAnchorEl, setProfileAnchorEl] = useState<null | HTMLElement>(null);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const handleSettingsClick = (event: React.MouseEvent<HTMLElement>) => {
     setSettingsAnchorEl(event.currentTarget);
@@ -91,32 +108,56 @@ export default function Dashboard() {
     setProfileAnchorEl(event.currentTarget);
   };
 
+  // Função para buscar os veículos do usuário
+  const fetchVehicles = async () => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      setVehicles(data || []);
+    } catch (err) {
+      console.error('Erro ao buscar veículos:', err);
+      setError('Não foi possível carregar seus veículos. Por favor, tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Buscar veículos quando o componente montar
+  useEffect(() => {
+    if (user) {
+      fetchVehicles();
+    }
+  }, [user]);
+
   const nextMaintenances = [
     { vehicle: 'Carro 1', service: 'Troca de Óleo', dueIn: '7 dias', progress: 75 },
     { vehicle: 'Carro 2', service: 'Rodízio de Pneus', dueIn: '14 dias', progress: 50 },
     { vehicle: 'Carro 3', service: 'Revisão Geral', dueIn: '30 dias', progress: 25 }
   ];
 
-  const maintenanceColumns = [
-    { field: 'vehicle', headerName: 'Veículo', flex: 1 },
-    { field: 'service', headerName: 'Serviço', flex: 1 },
-    { field: 'date', headerName: 'Data Prevista', flex: 1 },
-    { field: 'status', headerName: 'Status', flex: 1 },
-    { field: 'cost', headerName: 'Custo Estimado', flex: 1 }
-  ];
-
-  const maintenanceRows = [
-    { id: 1, vehicle: 'Carro 1', service: 'Troca de Óleo', date: '23/04/2025', status: 'Agendado', cost: 'R$ 350,00' },
-    { id: 2, vehicle: 'Carro 2', service: 'Rodízio de Pneus', date: '30/04/2025', status: 'Pendente', cost: 'R$ 200,00' },
-    { id: 3, vehicle: 'Carro 3', service: 'Revisão Geral', date: '15/05/2025', status: 'Agendado', cost: 'R$ 800,00' }
+  const vehicleColumns = [
+    { field: 'brand', headerName: 'Marca', flex: 1 },
+    { field: 'model', headerName: 'Modelo', flex: 1.5 },
+    { field: 'plate', headerName: 'Placa', flex: 1 },
+    { field: 'year', headerName: 'Ano', flex: 0.7, type: 'number' },
+    { field: 'mileage', headerName: 'Quilometragem', flex: 0.8, type: 'number',
+      valueFormatter: (params: { value: number }) => {
+        return `${params.value.toLocaleString()} km`;
+      }
+    },
   ];
 
   return (
-    <Box sx={{ 
-      flexGrow: 1,
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, rgba(25, 118, 210, 0.1), rgba(156, 39, 176, 0.1))',
-    }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <AppBar 
         position="static" 
         elevation={0}
@@ -156,32 +197,54 @@ export default function Dashboard() {
       <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
         <Grid container spacing={3}>
           <Grid item xs={12}>
-            <Stack 
-              direction={{ xs: 'column', sm: 'row' }} 
-              justifyContent="space-between" 
-              alignItems={{ xs: 'stretch', sm: 'center' }}
-              spacing={2}
-              mb={3}
+            <Paper 
+              elevation={0} 
+              sx={{ 
+                p: 3, 
+                mb: 3, 
+                borderRadius: 2,
+                backgroundImage: 'linear-gradient(to right, #f0f7ff, #e0f2ff)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+              }}
             >
-              <Typography variant="h4" component="h1">
-                Bem-vindo(a), {user?.user_metadata?.name || 'Usuário'}
-              </Typography>
-              <Button
-                variant="contained"
-                startIcon={<Plus size={20} />}
-                sx={{ 
-                  borderRadius: 2,
-                  backdropFilter: 'blur(10px)',
-                  backgroundColor: 'rgba(25, 118, 210, 0.9)',
-                  '&:hover': {
-                    backgroundColor: 'rgba(25, 118, 210, 1)',
-                  },
-                }}
-                onClick={() => navigate('/vehicles/new')}
+              <Stack 
+                direction={{ xs: 'column', sm: 'row' }} 
+                justifyContent="space-between" 
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+                spacing={2}
               >
-                Adicionar Veículo
-              </Button>
-            </Stack>
+                <Box>
+                  <Typography 
+                    variant="h4" 
+                    component="h1" 
+                    sx={{ 
+                      fontWeight: 'bold',
+                      color: theme.palette.primary.main 
+                    }}
+                  >
+                    Bem-vindo(a), {userProfile?.name || user?.email || 'Usuário'}
+                  </Typography>
+                  <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+                    O que você gostaria de fazer hoje?
+                  </Typography>
+                </Box>
+                <Button
+                  variant="contained"
+                  startIcon={<Plus size={20} />}
+                  sx={{ 
+                    borderRadius: 2,
+                    backdropFilter: 'blur(10px)',
+                    backgroundColor: 'rgba(25, 118, 210, 0.9)',
+                    '&:hover': {
+                      backgroundColor: 'rgba(25, 118, 210, 1)',
+                    },
+                  }}
+                  onClick={() => navigate('/vehicles/new')}
+                >
+                  Adicionar Veículo
+                </Button>
+              </Stack>
+            </Paper>
           </Grid>
 
           <Grid item xs={12} container spacing={3}>
@@ -189,7 +252,7 @@ export default function Dashboard() {
               <StatCard
                 icon={Car}
                 title="Total de Veículos"
-                value="3"
+                value={vehicles.length.toString()}
                 color={theme.palette.primary.main}
                 onClick={() => navigate('/vehicles')}
               />
@@ -320,23 +383,49 @@ export default function Dashboard() {
               backdropFilter: 'blur(10px)',
             }}>
               <CardContent>
-                <Typography variant="h6" component="div" gutterBottom>
-                  Manutenções Programadas
-                </Typography>
-                <Box sx={{ height: 400 }}>
-                  <DataGrid
-                    rows={maintenanceRows}
-                    columns={maintenanceColumns}
-                    initialState={{
-                      pagination: {
-                        paginationModel: { page: 0, pageSize: 5 },
-                      },
-                    }}
-                    pageSizeOptions={[5, 10]}
-                    disableRowSelectionOnClick
-                    localeText={ptBR.components.MuiDataGrid.defaultProps.localeText}
-                  />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6" component="div">
+                    Meus Veículos
+                  </Typography>
+                  <Button 
+                    startIcon={loading ? <CircularProgress size={20} /> : <RefreshCw size={20} />}
+                    onClick={fetchVehicles}
+                    disabled={loading}
+                  >
+                    Atualizar
+                  </Button>
                 </Box>
+                
+                {error && (
+                  <Alert severity="error" sx={{ mb: 2 }}>
+                    {error}
+                  </Alert>
+                )}
+                
+                {loading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : vehicles.length === 0 ? (
+                  <Alert severity="info">
+                    Você ainda não possui veículos cadastrados. Clique em "Adicionar Veículo" para começar.
+                  </Alert>
+                ) : (
+                  <Box sx={{ height: 400 }}>
+                    <DataGrid
+                      rows={vehicles}
+                      columns={vehicleColumns}
+                      initialState={{
+                        pagination: {
+                          paginationModel: { page: 0, pageSize: 5 },
+                        },
+                      }}
+                      pageSizeOptions={[5, 10]}
+                      disableRowSelectionOnClick
+                      localeText={ptBR.components.MuiDataGrid.defaultProps.localeText}
+                    />
+                  </Box>
+                )}
               </CardContent>
             </Card>
           </Grid>

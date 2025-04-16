@@ -8,23 +8,38 @@ import {
   Box,
   Divider,
   Stack,
+  InputAdornment,
+  IconButton,
 } from '@mui/material';
 import { Provider } from '@supabase/supabase-js';
 import { useAuth } from '../contexts/AuthContext';
-import { Github, Facebook, Mail } from 'lucide-react';
+import { Github, Facebook, Mail, Eye, EyeOff } from 'lucide-react';
 
 export default function Register() {
+  const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { signUp, signInWithProvider } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!fullName || !phone) {
+      setError('Todos os campos são obrigatórios');
+      return;
+    }
+    
     try {
-      await signUp(email, password);
-    } catch (err) {
-      setError('Failed to create an account');
+      await signUp(email, password, fullName, phone);
+    } catch (err: any) {
+      if (err?.message?.includes('already registered')) {
+        setError('Este email já está cadastrado. Tente fazer login ou use outro email.');
+      } else {
+        setError('Falha ao criar a conta: ' + (err?.message || 'Erro desconhecido'));
+      }
+      console.error('Erro de registro:', err);
     }
   };
 
@@ -32,14 +47,18 @@ export default function Register() {
     try {
       await signInWithProvider(provider);
     } catch (err) {
-      setError('Failed to sign up with social provider');
+      setError('Falha ao cadastrar com provedor social');
     }
+  };
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
   };
 
   return (
     <>
       <Typography component="h1" variant="h5" sx={{ mt: 2, mb: 3 }}>
-        Create your account
+        Crie sua conta
       </Typography>
       <Stack spacing={2} sx={{ width: '100%', mb: 3 }}>
         <Button
@@ -56,7 +75,7 @@ export default function Register() {
             }
           }}
         >
-          Continue with GitHub
+          Continuar com GitHub
         </Button>
         <Button
           fullWidth
@@ -72,7 +91,7 @@ export default function Register() {
             }
           }}
         >
-          Continue with Facebook
+          Continuar com Facebook
         </Button>
         <Button
           fullWidth
@@ -88,22 +107,44 @@ export default function Register() {
             }
           }}
         >
-          Continue with Google
+          Continuar com Google
         </Button>
       </Stack>
       
-      <Divider sx={{ width: '100%', mb: 3 }}>or</Divider>
+      <Divider sx={{ width: '100%', mb: 3 }}>ou</Divider>
 
       <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
         <TextField
           margin="normal"
           required
           fullWidth
+          id="fullName"
+          label="Nome Completo"
+          name="fullName"
+          autoComplete="name"
+          autoFocus
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
+        <TextField
+          margin="normal"
+          required
+          fullWidth
+          id="phone"
+          label="Telefone de Contato"
+          name="phone"
+          autoComplete="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+        />
+        <TextField
+          margin="normal"
+          required
+          fullWidth
           id="email"
-          label="Email Address"
+          label="Email"
           name="email"
           autoComplete="email"
-          autoFocus
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -112,12 +153,25 @@ export default function Register() {
           required
           fullWidth
           name="password"
-          label="Password"
-          type="password"
+          label="Senha"
+          type={showPassword ? "text" : "password"}
           id="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton
+                  aria-label="toggle password visibility"
+                  onClick={togglePasswordVisibility}
+                  edge="end"
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </IconButton>
+              </InputAdornment>
+            )
+          }}
         />
         {error && (
           <Typography color="error" sx={{ mt: 2 }}>
@@ -130,10 +184,10 @@ export default function Register() {
           variant="contained"
           sx={{ mt: 3, mb: 2 }}
         >
-          Sign Up
+          Cadastrar
         </Button>
         <Link component={RouterLink} to="/login" variant="body2">
-          {"Already have an account? Sign In"}
+          {"Já tem uma conta? Faça login"}
         </Link>
       </Box>
     </>

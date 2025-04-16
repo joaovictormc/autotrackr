@@ -14,10 +14,11 @@ import {
   Alert,
   Snackbar,
   CircularProgress,
+  Tooltip,
 } from '@mui/material';
 import { DataGrid, GridColDef, GridRenderCellParams, ptBR } from '@mui/x-data-grid';
 import { useTheme } from '@mui/material/styles';
-import { Edit, Trash2, Plus } from 'lucide-react';
+import { Edit, Trash2, Plus, Download } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface Brand {
@@ -25,10 +26,24 @@ interface Brand {
   name: string;
 }
 
+// Lista de marcas padrão baseadas nos modelos definidos
+const standardBrands = [
+  "Volkswagen",
+  "Chevrolet",
+  "Ford",
+  "Fiat",
+  "Toyota",
+  "Honda",
+  "Hyundai",
+  "Nissan",
+  "Renault"
+];
+
 export default function BrandsManager() {
   const theme = useTheme();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importLoading, setImportLoading] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [brandName, setBrandName] = useState('');
@@ -160,6 +175,67 @@ export default function BrandsManager() {
     }
   };
 
+  // Função para importar marcas padrões
+  const handleImportStandardBrands = async () => {
+    if (!window.confirm('Esta ação irá importar as marcas padrões. Deseja continuar?')) {
+      return;
+    }
+
+    setImportLoading(true);
+    try {
+      // Verificar quais marcas já existem no banco
+      const { data: existingBrands, error: fetchError } = await supabase
+        .from('brands')
+        .select('name');
+      
+      if (fetchError) throw fetchError;
+      
+      // Criar conjunto de nomes para facilitar a verificação
+      const existingBrandNames = new Set((existingBrands || []).map(b => b.name));
+      
+      // Filtrar apenas marcas que não existem
+      const newBrands = standardBrands
+        .filter(name => !existingBrandNames.has(name))
+        .map(name => ({ name }));
+      
+      if (newBrands.length === 0) {
+        setSnackbar({
+          open: true,
+          message: 'Todas as marcas padrões já estão cadastradas.',
+          severity: 'info',
+        });
+        setImportLoading(false);
+        return;
+      }
+      
+      // Inserir novas marcas
+      const { error: insertError, data: insertedData } = await supabase
+        .from('brands')
+        .insert(newBrands)
+        .select();
+      
+      if (insertError) throw insertError;
+      
+      setSnackbar({
+        open: true,
+        message: `Importação concluída! ${insertedData?.length || 0} marcas adicionadas.`,
+        severity: 'success',
+      });
+      
+      // Recarregar marcas
+      fetchBrands();
+    } catch (err) {
+      console.error('Erro ao importar marcas padrões:', err);
+      setSnackbar({
+        open: true,
+        message: 'Erro ao importar marcas padrões. Por favor, tente novamente.',
+        severity: 'error',
+      });
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   const columns: GridColDef[] = [
     { field: 'name', headerName: 'Nome da Marca', flex: 1 },
     {
@@ -193,13 +269,26 @@ export default function BrandsManager() {
         <Typography variant="h4" component="h1">
           Gerenciar Marcas
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Plus size={20} />}
-          onClick={() => handleOpenDialog()}
-        >
-          Nova Marca
-        </Button>
+        <Box display="flex" gap={2}>
+          <Tooltip title="Importar marcas padrões">
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={importLoading ? <CircularProgress size={20} /> : <Download size={20} />}
+              onClick={handleImportStandardBrands}
+              disabled={importLoading}
+            >
+              Importar Marcas Padrões
+            </Button>
+          </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<Plus size={20} />}
+            onClick={() => handleOpenDialog()}
+          >
+            Nova Marca
+          </Button>
+        </Box>
       </Box>
 
       <Card>
@@ -210,7 +299,7 @@ export default function BrandsManager() {
             </Box>
           ) : brands.length === 0 ? (
             <Alert severity="info">
-              Nenhuma marca cadastrada. Clique em "Nova Marca" para adicionar.
+              Nenhuma marca cadastrada. Clique em "Nova Marca" para adicionar ou use "Importar Marcas Padrões" para adicionar automaticamente.
             </Alert>
           ) : (
             <div style={{ height: 500, width: '100%' }}>
@@ -249,8 +338,7 @@ export default function BrandsManager() {
             fullWidth
             value={brandName}
             onChange={(e) => setBrandName(e.target.value)}
-            placeholder="Ex: Ford, Volkswagen, Fiat..."
-            sx={{ mt: 2 }}
+            placeholder="Ex: Volkswagen, Chevrolet, Toyota..."
           />
         </DialogContent>
         <DialogActions>

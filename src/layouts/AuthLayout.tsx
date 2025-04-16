@@ -1,16 +1,16 @@
 import React, { useEffect } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { Container, Box, Paper, CircularProgress, Typography, Button } from '@mui/material';
+import { Container, Box, Paper, CircularProgress, Typography, Button, Stack } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import { Car } from 'lucide-react';
+import { Car, RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function AuthLayout() {
-  const { user, loading } = useAuth();
+  const { user, loading, loadingError, retryConnection } = useAuth();
 
   // Log para depuração
   useEffect(() => {
-    console.log('AuthLayout - Estados:', { loading, isAuthenticated: !!user });
-  }, [user, loading]);
+    console.log('AuthLayout - Estados:', { loading, isAuthenticated: !!user, error: loadingError });
+  }, [user, loading, loadingError]);
   
   // Adicionar timeout de segurança para evitar carregamento infinito
   const [loadingTimeout, setLoadingTimeout] = React.useState(false);
@@ -31,6 +31,12 @@ export default function AuthLayout() {
     console.log('Recarregando a página...');
     window.location.reload();
   };
+  
+  const handleRetry = () => {
+    console.log('Tentando reconectar...');
+    setLoadingTimeout(false);
+    retryConnection();
+  };
 
   if (loading) {
     return (
@@ -50,19 +56,39 @@ export default function AuthLayout() {
           Carregando...
         </Typography>
         
-        {loadingTimeout && (
-          <Box sx={{ mt: 4, textAlign: 'center' }}>
-            <Typography variant="body1" color="error" gutterBottom>
-              O carregamento está demorando mais do que o esperado.
+        {(loadingTimeout || loadingError) && (
+          <Box sx={{ mt: 4, textAlign: 'center', maxWidth: '400px' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
+              <AlertTriangle color="#f44336" size={24} />
+              <Typography variant="body1" color="error" sx={{ ml: 1 }}>
+                {loadingError 
+                  ? 'Erro de conexão com o servidor.' 
+                  : 'O carregamento está demorando mais do que o esperado.'}
+              </Typography>
+            </Box>
+            
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+              Isso pode ocorrer devido a problemas de rede ou servidor. Você pode tentar:
             </Typography>
-            <Button 
-              variant="contained" 
-              color="primary" 
-              onClick={handleReload}
-              sx={{ mt: 2 }}
-            >
-              Recarregar Página
-            </Button>
+            
+            <Stack direction="row" spacing={2} justifyContent="center">
+              <Button 
+                variant="outlined" 
+                color="primary" 
+                onClick={handleRetry}
+                startIcon={<RefreshCw size={16} />}
+              >
+                Reconectar
+              </Button>
+              
+              <Button 
+                variant="contained" 
+                color="primary" 
+                onClick={handleReload}
+              >
+                Recarregar Página
+              </Button>
+            </Stack>
           </Box>
         )}
       </Box>

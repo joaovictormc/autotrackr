@@ -8,6 +8,7 @@ export interface UserProfile {
   email: string;
   role: 'admin' | 'user';
   name?: string;
+  phone?: string;
 }
 
 interface AuthContextType {
@@ -15,14 +16,38 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
+  loadingError: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, phone: string) => Promise<void>;
   signInWithProvider: (provider: Provider) => Promise<void>;
   signOut: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (password: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
+  retryConnection: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Salvar perfil no localStorage para servir como cache
+const saveProfileToCache = (profile: UserProfile) => {
+  try {
+    localStorage.setItem('cached_user_profile', JSON.stringify(profile));
+  } catch (e) {
+    console.warn('Erro ao salvar perfil no cache:', e);
+  }
+};
+
+// Recuperar perfil do cache
+const getCachedProfile = (): UserProfile | null => {
+  try {
+    const cached = localStorage.getItem('cached_user_profile');
+    return cached ? JSON.parse(cached) : null;
+  } catch (e) {
+    console.warn('Erro ao ler perfil do cache:', e);
+    return null;
+  }
+};
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -30,15 +55,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
-  const timeoutRef = useRef<number | null>(null);
+  const [loadingError, setLoadingError] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
+  const connectionAttemptsRef = useRef(0);
+  const maxRetries = 3;
 
   console.log('AuthContextProvider inicializado');
+
+  // Função para reiniciar a conexão
+  const retryConnection = () => {
+    console.log('Tentando reconectar...');
+    setLoadingError(false);
+    setLoading(true);
+    setLoadingTimeout(false);
+    connectionAttemptsRef.current = 0;
+    
+    // Tentar novamente a verificação da sessão
+    initializeAuth();
+  };
 
   // Função para buscar o perfil do usuário
   const fetchUserProfile = async (userId: string) => {
     try {
       console.log('Buscando perfil do usuário:', userId);
+      
+      // Primeiro, tentar usar o cache se disponível
+      const cachedProfile = getCachedProfile();
+      if (cachedProfile && cachedProfile.id === userId) {
+        console.log('Usando perfil em cache temporariamente');
+      }
       
       // Tentar buscar o perfil do usuário na tabela de perfis
       const { data, error } = await supabase
@@ -49,6 +95,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error('Erro ao buscar perfil:', error);
+        
+        // Se tiver cache, usar como fallback
+        if (cachedProfile && cachedProfile.id === userId) {
+          console.log('Usando perfil em cache como fallback');
+          return cachedProfile;
+        }
         
         // Verificar se a tabela existe
         const { data: tables, error: tableError } = await supabase
@@ -81,45 +133,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
           if (createError) {
             console.error('Erro ao criar perfil:', createError);
-            return {
+            const defaultProfile = {
               id: userId,
               email: user?.email || '',
               role: 'user' as const,
             };
+            saveProfileToCache(defaultProfile);
+            return defaultProfile;
           }
           
           console.log('Perfil criado com sucesso:', createdProfile);
           
-          return {
+          const newUserProfile = {
             id: userId,
             email: user?.email || '',
             role: 'user' as const,
           };
+          saveProfileToCache(newUserProfile);
+          return newUserProfile;
         } catch (insertError) {
           console.error('Erro ao inserir perfil:', insertError);
-          return {
+          const defaultProfile = {
             id: userId,
             email: user?.email || '',
             role: 'user' as const,
           };
+          saveProfileToCache(defaultProfile);
+          return defaultProfile;
         }
       }
       
       console.log('Perfil encontrado:', data);
       
-      return {
+      const profile = {
         id: userId,
         email: data.email || user?.email || '',
         role: data.role as 'admin' | 'user',
         name: data.name,
+        phone: data.phone,
       };
+      
+      // Atualizar cache
+      saveProfileToCache(profile);
+      
+      return profile;
     } catch (err) {
       console.error('Erro inesperado ao buscar perfil:', err);
-      return {
+      
+      // Se tiver cache, usar como fallback
+      const cachedProfile = getCachedProfile();
+      if (cachedProfile && cachedProfile.id === userId) {
+        console.log('Usando perfil em cache após erro');
+        return cachedProfile;
+      }
+      
+      const defaultProfile = {
         id: userId,
         email: user?.email || '',
         role: 'user' as const,
       };
+      saveProfileToCache(defaultProfile);
+      return defaultProfile;
     }
   };
 
@@ -132,46 +206,118 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAdmin(profile?.role === 'admin');
   };
 
-  useEffect(() => {
-    console.log('useEffect: Configurando listener de auth');
+  // Função para inicializar a autenticação
+  const initializeAuth = async () => {
+    console.log('Inicializando autenticação...');
     
-    // Configurar um timeout para evitar carregamento infinito
-    timeoutRef.current = window.setTimeout(() => {
-      console.log('TIMEOUT: Carregamento demorou muito tempo');
-      setLoadingTimeout(true);
-    }, 10000); // 10 segundos
-    
-    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Evento de auth:', event, 'Sessão:', !!session);
+    try {
+      // Limpar timeout anterior se existir
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Configurar um novo timeout
+      timeoutRef.current = window.setTimeout(() => {
+        console.log('TIMEOUT: Carregamento demorou muito tempo');
+        setLoadingTimeout(true);
+        
+        // Se exceder o número máximo de tentativas, mostrar erro
+        if (connectionAttemptsRef.current >= maxRetries) {
+          setLoadingError(true);
+          console.error(`Erro após ${maxRetries} tentativas de conexão`);
+        } else {
+          // Tentar novamente automaticamente
+          connectionAttemptsRef.current++;
+          console.log(`Tentativa ${connectionAttemptsRef.current} de ${maxRetries}`);
+          initializeAuth();
+        }
+      }, 7000); // 7 segundos de timeout
+      
+      // Verificar sessão existente
+      const { data: { session } } = await supabase.auth.getSession();
       
       setSession(session);
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        console.log('Usuário autenticado, buscando perfil');
-        try {
-          const profile = await fetchUserProfile(session.user.id);
-          setUserProfile(profile);
-          setIsAdmin(profile?.role === 'admin');
-        } catch (error) {
-          console.error('Erro ao definir perfil do usuário:', error);
+        // Tentar usar cache primeiro
+        const cachedProfile = getCachedProfile();
+        if (cachedProfile && cachedProfile.id === session.user.id) {
+          setUserProfile(cachedProfile);
+          setIsAdmin(cachedProfile.role === 'admin');
         }
-      } else {
-        console.log('Sem usuário autenticado, limpando perfil');
-        setUserProfile(null);
-        setIsAdmin(false);
+        
+        // Buscar perfil atualizado
+        const profile = await fetchUserProfile(session.user.id);
+        setUserProfile(profile);
+        setIsAdmin(profile?.role === 'admin');
       }
       
+      // Configurar listener de mudanças de auth
+      const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+        console.log('Evento de auth:', event, 'Sessão:', !!newSession);
+        
+        setSession(newSession);
+        setUser(newSession?.user ?? null);
+        
+        if (newSession?.user) {
+          console.log('Usuário autenticado, buscando perfil');
+          try {
+            const profile = await fetchUserProfile(newSession.user.id);
+            setUserProfile(profile);
+            setIsAdmin(profile?.role === 'admin');
+          } catch (error) {
+            console.error('Erro ao definir perfil do usuário:', error);
+          }
+        } else {
+          console.log('Sem usuário autenticado, limpando perfil');
+          setUserProfile(null);
+          setIsAdmin(false);
+        }
+      });
+      
+      // Limpar estado de carregamento
       setLoading(false);
+      setLoadingTimeout(false);
+      setLoadingError(false);
+      
+      // Limpar timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
-    });
+      
+      return () => {
+        data?.subscription?.unsubscribe();
+      };
+    } catch (error) {
+      console.error('Erro na inicialização da autenticação:', error);
+      
+      // Se exceder o número máximo de tentativas, mostrar erro
+      if (connectionAttemptsRef.current >= maxRetries) {
+        setLoadingError(true);
+        setLoading(false);
+      } else {
+        // Tentar novamente
+        connectionAttemptsRef.current++;
+        console.log(`Tentativa ${connectionAttemptsRef.current} de ${maxRetries}`);
+        setTimeout(initializeAuth, 2000); // Esperar 2 segundos antes de tentar novamente
+      }
+      
+      // Limpar timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    }
+  };
 
+  // Inicializar autenticação ao montar o componente
+  useEffect(() => {
+    initializeAuth();
+    
     return () => {
-      console.log('Limpeza do effect de auth');
-      data?.subscription?.unsubscribe();
+      console.log('Limpeza do provider de auth');
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
@@ -184,32 +330,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sessão: !!session,
       perfil: !!userProfile,
       carregando: loading,
-      timeout: loadingTimeout
+      timeout: loadingTimeout,
+      erro: loadingError,
+      tentativas: connectionAttemptsRef.current
     });
-  }, [user, session, userProfile, loading, loadingTimeout]);
-
-  // Verificar perfil do usuário ao iniciar (caso já esteja logado)
-  useEffect(() => {
-    const checkSession = async () => {
-      console.log('Verificando sessão existente');
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('Sessão atual:', !!session);
-        
-        if (session?.user && !userProfile) {
-          console.log('Sessão encontrada, buscando perfil para:', session.user.id);
-          const profile = await fetchUserProfile(session.user.id);
-          setUserProfile(profile);
-          setIsAdmin(profile?.role === 'admin');
-        }
-      } catch (error) {
-        console.error('Erro ao verificar sessão:', error);
-      }
-    };
-    
-    checkSession();
-  }, []);
-
+  }, [user, session, userProfile, loading, loadingTimeout, loadingError]);
+  
   const signIn = async (email: string, password: string) => {
     console.log('Tentando fazer login com email:', email);
     try {
@@ -231,12 +357,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, fullName: string, phone: string) => {
     try {
       console.log('Tentando registro com email:', email);
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
-      console.log('Registro bem-sucedido');
+      
+      if (data?.user) {
+        console.log('Registro bem-sucedido, salvando dados de perfil');
+        try {
+          const newProfile = {
+            user_id: data.user.id,
+            email: email,
+            name: fullName,
+            phone: phone,
+            role: 'user'
+          };
+          
+          const { error: profileError } = await supabase
+            .from('user_profiles')
+            .insert([newProfile]);
+            
+          if (profileError) {
+            console.error('Erro ao salvar perfil:', profileError);
+          } else {
+            console.log('Perfil do usuário salvo com sucesso');
+            // Atualizar perfil no contexto
+            const profile = {
+              id: data.user.id,
+              email: email,
+              role: 'user' as const,
+              name: fullName,
+              phone: phone
+            };
+            setUserProfile(profile);
+            saveProfileToCache(profile);
+          }
+        } catch (profileSaveErr) {
+          console.error('Exceção ao salvar perfil:', profileSaveErr);
+        }
+      }
     } catch (err) {
       console.error('Erro no registro:', err);
       throw err;
@@ -248,12 +408,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('Tentando login com provedor:', provider);
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
       });
       if (error) throw error;
-      console.log('Redirecionando para provedor OAuth');
+      console.log('Login com provedor iniciado');
     } catch (err) {
       console.error('Erro no login com provedor:', err);
       throw err;
@@ -261,32 +418,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    console.log('Iniciando processo de logout');
     try {
+      console.log('Fazendo logout');
       const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Erro no logout:', error);
-        throw error;
-      }
+      if (error) throw error;
       console.log('Logout bem-sucedido');
-    } catch (error) {
-      console.error('Exceção no logout:', error);
-      throw error;
+    } catch (err) {
+      console.error('Erro no logout:', err);
+      throw err;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      console.log('Enviando email de recuperação de senha para:', email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      console.log('Email de recuperação enviado com sucesso');
+    } catch (err) {
+      console.error('Erro ao enviar email de recuperação:', err);
+      throw err;
+    }
+  };
+
+  const updatePassword = async (password: string) => {
+    try {
+      console.log('Atualizando senha do usuário');
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      console.log('Senha atualizada com sucesso');
+    } catch (err) {
+      console.error('Erro ao atualizar senha:', err);
+      throw err;
     }
   };
 
   return (
-    <AuthContext.Provider 
-      value={{ 
-        user, 
+    <AuthContext.Provider
+      value={{
+        user,
         userProfile,
-        loading, 
+        loading,
+        loadingError,
         isAdmin,
-        signIn, 
-        signUp, 
-        signInWithProvider, 
+        signIn,
+        signUp,
+        signInWithProvider,
         signOut,
-        refreshProfile 
+        resetPassword,
+        updatePassword,
+        refreshProfile,
+        retryConnection
       }}
     >
       {children}
@@ -297,7 +481,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
   }
   return context;
 }
