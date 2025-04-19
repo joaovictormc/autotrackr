@@ -49,6 +49,10 @@ const getCachedProfile = (): UserProfile | null => {
   }
 };
 
+// Flag para detectar problemas críticos de inicialização
+let initializationAttempts = 0;
+const MAX_INITIALIZATION_ATTEMPTS = 3;
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -60,15 +64,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const timeoutRef = useRef<number | null>(null);
   const connectionAttemptsRef = useRef(0);
   const maxRetries = 3;
+  const mounted = useRef(true);
 
-  console.log('AuthContextProvider inicializado');
+  // Cleanup ao desmontar
+  useEffect(() => {
+    return () => {
+      mounted.current = false;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  const safeSetState = (setter: Function, value: any) => {
+    if (mounted.current) {
+      setter(value);
+    }
+  };
 
   // Função para reiniciar a conexão
   const retryConnection = () => {
+    if (!mounted.current) return;
+    
     console.log('Tentando reconectar...');
-    setLoadingError(false);
-    setLoading(true);
-    setLoadingTimeout(false);
+    safeSetState(setLoadingError, false);
+    safeSetState(setLoading, true);
+    safeSetState(setLoadingTimeout, false);
     connectionAttemptsRef.current = 0;
     
     // Tentar novamente a verificação da sessão
@@ -77,6 +98,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Função para buscar o perfil do usuário
   const fetchUserProfile = async (userId: string) => {
+    if (!mounted.current) return null;
+
     try {
       console.log('Buscando perfil do usuário:', userId);
       
@@ -84,8 +107,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const cachedProfile = getCachedProfile();
       if (cachedProfile && cachedProfile.id === userId) {
         console.log('Usando perfil em cache temporariamente');
+        return cachedProfile;
       }
       
+      if (!mounted.current) return null;
+
       // Tentar buscar o perfil do usuário na tabela de perfis
       const { data, error } = await supabase
         .from('user_profiles')
@@ -93,74 +119,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', userId)
         .single();
 
+      if (!mounted.current) return null;
+
       if (error) {
         console.error('Erro ao buscar perfil:', error);
         
-        // Se tiver cache, usar como fallback
-        if (cachedProfile && cachedProfile.id === userId) {
-          console.log('Usando perfil em cache como fallback');
-          return cachedProfile;
-        }
-        
-        // Verificar se a tabela existe
-        const { data: tables, error: tableError } = await supabase
-          .from('pg_tables')
-          .select('tablename')
-          .eq('schemaname', 'public')
-          .in('tablename', ['user_profiles']);
+        // Se o erro for que o perfil não existe, criar um novo
+        if (error.code === 'PGRST116') {
+          console.log('Perfil não encontrado, criando novo perfil...');
+          const newProfile = {
+            user_id: userId,
+            email: user?.email || '',
+            role: 'user' as const
+          };
           
-        if (tableError) {
-          console.error('Erro ao verificar tabela user_profiles:', tableError);
-        } else {
-          console.log('Tabela user_profiles existe?', tables && tables.length > 0);
-        }
-        
-        // Se não existir, criar um perfil padrão
-        const newProfile = {
-          user_id: userId,
-          role: 'user',
-          email: user?.email || '',
-        };
-        
-        console.log('Criando novo perfil:', newProfile);
-        
-        try {
-          const { data: createdProfile, error: createError } = await supabase
+          const { data: insertedProfile, error: insertError } = await supabase
             .from('user_profiles')
-            .insert([newProfile])
+            .insert(newProfile)
             .select()
             .single();
             
-          if (createError) {
-            console.error('Erro ao criar perfil:', createError);
-            const defaultProfile = {
-              id: userId,
-              email: user?.email || '',
-              role: 'user' as const,
-            };
-            saveProfileToCache(defaultProfile);
-            return defaultProfile;
+          if (insertError) {
+            console.error('Erro ao criar perfil:', insertError);
+            throw insertError;
           }
           
-          console.log('Perfil criado com sucesso:', createdProfile);
+          const profile = {
+            id: userId,
+            email: insertedProfile.email,
+            role: insertedProfile.role as 'admin' | 'user',
+            name: insertedProfile.name,
+            phone: insertedProfile.phone
+          };
           
-          const newUserProfile = {
-            id: userId,
-            email: user?.email || '',
-            role: 'user' as const,
-          };
-          saveProfileToCache(newUserProfile);
-          return newUserProfile;
-        } catch (insertError) {
-          console.error('Erro ao inserir perfil:', insertError);
-          const defaultProfile = {
-            id: userId,
-            email: user?.email || '',
-            role: 'user' as const,
-          };
-          saveProfileToCache(defaultProfile);
-          return defaultProfile;
+          saveProfileToCache(profile);
+          return profile;
         }
+        
+        // Se tiver cache, usar como fallback
+        if (cachedProfile && cachedProfile.id === userId) {
+          console.log('Usando perfil em cache como fallback após erro');
+          return cachedProfile;
+        }
+
+        throw error;
       }
       
       console.log('Perfil encontrado:', data);
@@ -187,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return cachedProfile;
       }
       
+      // Se não tiver cache, criar um perfil padrão
       const defaultProfile = {
         id: userId,
         email: user?.email || '',
@@ -199,15 +202,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Função para atualizar o perfil do usuário no estado
   const refreshProfile = async () => {
-    if (!user) return;
+    if (!user || !mounted.current) return;
     
     const profile = await fetchUserProfile(user.id);
-    setUserProfile(profile);
-    setIsAdmin(profile?.role === 'admin');
+    if (profile && mounted.current) {
+      safeSetState(setUserProfile, profile);
+      safeSetState(setIsAdmin, profile.role === 'admin');
+    }
   };
 
   // Função para inicializar a autenticação
   const initializeAuth = async () => {
+    if (!mounted.current) return;
+    
     console.log('Inicializando autenticação...');
     
     try {
@@ -218,96 +225,120 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       // Configurar um novo timeout
       timeoutRef.current = window.setTimeout(() => {
+        if (!mounted.current) return;
+        
         console.log('TIMEOUT: Carregamento demorou muito tempo');
-        setLoadingTimeout(true);
+        safeSetState(setLoadingTimeout, true);
+        safeSetState(setLoadingError, true);
+        safeSetState(setLoading, false);
         
-        // Se exceder o número máximo de tentativas, mostrar erro
-        if (connectionAttemptsRef.current >= maxRetries) {
-          setLoadingError(true);
-          console.error(`Erro após ${maxRetries} tentativas de conexão`);
-        } else {
-          // Tentar novamente automaticamente
-          connectionAttemptsRef.current++;
-          console.log(`Tentativa ${connectionAttemptsRef.current} de ${maxRetries}`);
-          initializeAuth();
-        }
-      }, 7000); // 7 segundos de timeout
+        // Não tentar reiniciar aqui - deixe o usuário decidir
+        console.error('Timeout atingido na autenticação');
+      }, 10000); // Agora apenas 10 segundos
       
+      if (!mounted.current) return;
+
       // Verificar sessão existente
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      setSession(session);
-      setUser(session?.user ?? null);
+      if (sessionError) {
+        console.error('Erro ao obter sessão:', sessionError);
+        throw sessionError;
+      }
       
+      // Define o estado básico
+      safeSetState(setSession, session);
+      safeSetState(setUser, session?.user ?? null);
+
+      // Se tiver usuário, simplificar a busca de perfil
       if (session?.user) {
-        // Tentar usar cache primeiro
-        const cachedProfile = getCachedProfile();
-        if (cachedProfile && cachedProfile.id === session.user.id) {
-          setUserProfile(cachedProfile);
-          setIsAdmin(cachedProfile.role === 'admin');
-        }
-        
-        // Buscar perfil atualizado
-        const profile = await fetchUserProfile(session.user.id);
-        setUserProfile(profile);
-        setIsAdmin(profile?.role === 'admin');
-      }
-      
-      // Configurar listener de mudanças de auth
-      const { data } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-        console.log('Evento de auth:', event, 'Sessão:', !!newSession);
-        
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-        
-        if (newSession?.user) {
-          console.log('Usuário autenticado, buscando perfil');
-          try {
-            const profile = await fetchUserProfile(newSession.user.id);
-            setUserProfile(profile);
-            setIsAdmin(profile?.role === 'admin');
-          } catch (error) {
-            console.error('Erro ao definir perfil do usuário:', error);
+        try {
+          // Sempre usar perfil básico primeiro
+          const basicProfile = {
+            id: session.user.id,
+            email: session.user.email || '',
+            role: 'user' as const
+          };
+          
+          // Definir o perfil básico enquanto busca o perfil completo
+          safeSetState(setUserProfile, basicProfile);
+          safeSetState(setIsAdmin, false);
+          
+          // Limpar timeout já que temos o básico funcionando
+          if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
           }
-        } else {
-          console.log('Sem usuário autenticado, limpando perfil');
-          setUserProfile(null);
-          setIsAdmin(false);
+          
+          // Buscar perfil completo em background
+          const { data: profile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+            
+          if (profileError) {
+            console.error('Erro ao buscar perfil:', profileError);
+            // Já temos o perfil básico, então continuar mesmo com erro
+          } 
+          else if (profile) {
+            // Perfil existente encontrado
+            const userProfile = {
+              id: session.user.id,
+              email: profile.email,
+              role: profile.role as 'admin' | 'user',
+              name: profile.name,
+              phone: profile.phone
+            };
+            
+            safeSetState(setUserProfile, userProfile);
+            safeSetState(setIsAdmin, userProfile.role === 'admin');
+            saveProfileToCache(userProfile);
+          }
+          else {
+            // Criar perfil apenas se realmente não existir
+            console.log('Criando perfil para:', session.user.email);
+            
+            try {
+              const { error: insertError } = await supabase
+                .from('user_profiles')
+                .insert({
+                  user_id: session.user.id,
+                  email: session.user.email || '',
+                  role: 'user'
+                });
+                
+              if (insertError) {
+                console.error('Erro ao criar perfil:', insertError);
+              }
+            } catch (err) {
+              console.error('Erro ao inserir perfil:', err);
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao processar perfil:', error);
+          // Continuar mesmo com erro no perfil
         }
-      });
+      }
       
-      // Limpar estado de carregamento
-      setLoading(false);
-      setLoadingTimeout(false);
-      setLoadingError(false);
+      // Finalizar inicialização
+      safeSetState(setLoading, false);
+      safeSetState(setLoadingTimeout, false);
+      safeSetState(setLoadingError, false);
       
       // Limpar timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
       }
-      
-      return () => {
-        data?.subscription?.unsubscribe();
-      };
     } catch (error) {
-      console.error('Erro na inicialização da autenticação:', error);
+      console.error('Erro ao inicializar autenticação:', error);
       
-      // Se exceder o número máximo de tentativas, mostrar erro
-      if (connectionAttemptsRef.current >= maxRetries) {
-        setLoadingError(true);
-        setLoading(false);
-      } else {
-        // Tentar novamente
-        connectionAttemptsRef.current++;
-        console.log(`Tentativa ${connectionAttemptsRef.current} de ${maxRetries}`);
-        setTimeout(initializeAuth, 2000); // Esperar 2 segundos antes de tentar novamente
-      }
+      // Falha na inicialização
+      safeSetState(setLoadingError, true);
+      safeSetState(setLoading, false);
       
       // Limpar timeout
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
       }
     }
   };
@@ -315,13 +346,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Inicializar autenticação ao montar o componente
   useEffect(() => {
     initializeAuth();
-    
-    return () => {
-      console.log('Limpeza do provider de auth');
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-    };
   }, []);
 
   useEffect(() => {
@@ -350,7 +374,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       
       console.log('Login bem-sucedido:', data);
-      return data;
     } catch (error) {
       console.error('Exceção no login:', error);
       throw error;
@@ -454,6 +477,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw err;
     }
   };
+
+  // Ajustar a lógica de tentativas de inicialização
+  useEffect(() => {
+    if (loading) {
+      try {
+        // Verificar contagem de tentativas de inicialização
+        const storedAttempts = localStorage.getItem('auth_init_attempts');
+        if (storedAttempts) {
+          initializationAttempts = parseInt(storedAttempts, 10);
+        }
+        
+        // Incrementar contagem só se ela for menor que o limite
+        if (initializationAttempts < MAX_INITIALIZATION_ATTEMPTS) {
+          initializationAttempts++;
+          localStorage.setItem('auth_init_attempts', initializationAttempts.toString());
+          
+          console.log(`Tentativa de inicialização #${initializationAttempts}`);
+          
+          // Se exceder o limite, redirecionar para a página de erro
+          if (initializationAttempts >= MAX_INITIALIZATION_ATTEMPTS) {
+            console.error(`ERRO CRÍTICO: ${initializationAttempts} tentativas de inicialização sem sucesso`);
+            
+            // Redirecionar para página de erro do sistema depois de algumas tentativas
+            if (initializationAttempts === MAX_INITIALIZATION_ATTEMPTS) {
+              console.log('Redirecionando para página de erro do sistema...');
+              setTimeout(() => {
+                window.location.href = '/system-error';
+              }, 1000);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Erro ao verificar tentativas de inicialização:', e);
+      }
+    } else if (!loading && !loadingError) {
+      // Reiniciar contagem se a inicialização foi bem-sucedida
+      localStorage.removeItem('auth_init_attempts');
+      initializationAttempts = 0;
+    }
+  }, [loading, loadingError]);
 
   return (
     <AuthContext.Provider

@@ -5,6 +5,7 @@ import {
   ListItemIcon,
   ListItemText,
   Divider,
+  useTheme,
 } from '@mui/material';
 import {
   Settings,
@@ -13,17 +14,24 @@ import {
   Bell,
   Palette,
   Languages,
+  Database,
 } from 'lucide-react';
 import { useThemeContext } from '../contexts/ThemeContext';
 
 interface SettingsMenuProps {
-  anchorEl: null | HTMLElement;
+  anchorEl: HTMLElement | null;
   open: boolean;
   onClose: () => void;
 }
 
 export default function SettingsMenu({ anchorEl, open, onClose }: SettingsMenuProps) {
-  const { mode, toggleColorMode } = useThemeContext();
+  const theme = useTheme();
+  const { toggleColorMode } = useThemeContext();
+
+  const handleThemeToggle = () => {
+    toggleColorMode();
+    onClose();
+  };
 
   return (
     <Menu
@@ -47,12 +55,16 @@ export default function SettingsMenu({ anchorEl, open, onClose }: SettingsMenuPr
       transformOrigin={{ horizontal: 'right', vertical: 'top' }}
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
     >
-      <MenuItem onClick={toggleColorMode}>
+      <MenuItem onClick={handleThemeToggle}>
         <ListItemIcon>
-          {mode === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+          {theme.palette.mode === 'dark' ? (
+            <Sun size={20} />
+          ) : (
+            <Moon size={20} />
+          )}
         </ListItemIcon>
         <ListItemText>
-          {mode === 'dark' ? 'Modo Claro' : 'Modo Escuro'}
+          {theme.palette.mode === 'dark' ? 'Modo Claro' : 'Modo Escuro'}
         </ListItemText>
       </MenuItem>
       <MenuItem>
@@ -72,6 +84,13 @@ export default function SettingsMenu({ anchorEl, open, onClose }: SettingsMenuPr
           <Languages size={20} />
         </ListItemIcon>
         <ListItemText>Idioma</ListItemText>
+      </MenuItem>
+      <Divider />
+      <MenuItem>
+        <ListItemIcon>
+          <Database size={20} />
+        </ListItemIcon>
+        <ListItemText>Backup & Sincronização</ListItemText>
       </MenuItem>
     </Menu>
   );

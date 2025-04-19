@@ -14,12 +14,64 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+// Função para fazer fetch com retry
+const fetchWithRetry = async (url: string | Request, options?: RequestInit) => {
+  const timeout = 15000; // 15 segundos de timeout
+  const maxRetries = 3;
+  let attempt = 0;
+  
+  while (attempt < maxRetries) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        return response;
+      }
+      
+      // Se o erro for 500, tentar novamente
+      if (response.status === 500) {
+        attempt++;
+        if (attempt < maxRetries) {
+          console.log(`Tentativa ${attempt} de ${maxRetries} para ${url.toString()}`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Espera exponencial
+          continue;
+        }
+      }
+      
+      return response; // Retorna a resposta mesmo com erro se não for 500 ou acabaram as tentativas
+    } catch (error: unknown) {
+      clearTimeout(timeoutId);
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error(`Timeout de ${timeout}ms excedido para ${url.toString()}`);
+      }
+      
+      attempt++;
+      if (attempt < maxRetries) {
+        console.log(`Tentativa ${attempt} de ${maxRetries} para ${url.toString()}`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Espera exponencial
+        continue;
+      }
+      
+      throw error;
+    }
+  }
+  
+  throw new Error(`Máximo de ${maxRetries} tentativas excedido para ${url.toString()}`);
+};
+
 // Cria o cliente Supabase com timeout e retentativa configurados
 let supabase: SupabaseClient;
 try {
   console.log('Criando cliente Supabase...');
   
-  // Opções do cliente com timeout reduzido e retentativas configuradas
   const options = {
     auth: {
       autoRefreshToken: true,
@@ -28,24 +80,7 @@ try {
     },
     global: {
       headers: { 'x-application-name': 'autotrackr' },
-      // Reduzir timeout para evitar esperas longas quando há problemas
-      fetch: (url: RequestInfo, options?: RequestInit) => {
-        const timeout = 5000; // 5 segundos de timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        
-        return fetch(url, {
-          ...options,
-          signal: controller.signal
-        }).then(response => {
-          clearTimeout(timeoutId);
-          return response;
-        }).catch(error => {
-          clearTimeout(timeoutId);
-          console.error(`Erro na requisição Supabase (${url}):`, error);
-          throw error;
-        });
-      }
+      fetch: fetchWithRetry as typeof fetch
     }
   };
   

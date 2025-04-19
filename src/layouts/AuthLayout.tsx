@@ -1,11 +1,12 @@
 import React, { useEffect } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { Container, Box, Paper, CircularProgress, Typography, Button, Stack } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { Car, RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function AuthLayout() {
   const { user, loading, loadingError, retryConnection } = useAuth();
+  const navigate = useNavigate();
 
   // Log para depuração
   useEffect(() => {
@@ -24,8 +25,19 @@ export default function AuthLayout() {
       }
     }, 10000);
     
-    return () => clearTimeout(timer);
-  }, [loading]);
+    // Após 20 segundos, redirecionar para página de erro de sistema
+    const systemErrorTimer = setTimeout(() => {
+      if (loading) {
+        console.error('Erro crítico: Timeout de carregamento excedido, redirecionando para página de erro do sistema');
+        navigate('/system-error');
+      }
+    }, 20000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(systemErrorTimer);
+    };
+  }, [loading, navigate]);
 
   const handleReload = () => {
     console.log('Recarregando a página...');
@@ -36,6 +48,11 @@ export default function AuthLayout() {
     console.log('Tentando reconectar...');
     setLoadingTimeout(false);
     retryConnection();
+  };
+  
+  const handleSystemError = () => {
+    console.log('Redirecionando para página de erro do sistema...');
+    navigate('/system-error');
   };
 
   if (loading) {
@@ -89,6 +106,15 @@ export default function AuthLayout() {
                 Recarregar Página
               </Button>
             </Stack>
+            
+            <Button
+              variant="text"
+              color="error"
+              onClick={handleSystemError}
+              sx={{ mt: 2 }}
+            >
+              Ferramentas de Diagnóstico
+            </Button>
           </Box>
         )}
       </Box>

@@ -1,6 +1,14 @@
 import React, { useState, useEffect, ReactNode, ErrorInfo } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { CssBaseline, Alert, Snackbar, Button } from '@mui/material';
+import { 
+  BrowserRouter, 
+  Routes, 
+  Route, 
+  Navigate,
+  createRoutesFromElements,
+  createBrowserRouter,
+  RouterProvider
+} from 'react-router-dom';
+import { CssBaseline, Alert, Snackbar, Button, Box } from '@mui/material';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import Login from './pages/Login';
@@ -14,6 +22,7 @@ import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import BrandsManager from './pages/admin/BrandsManager';
 import ModelsManager from './pages/admin/ModelsManager';
+import SystemError from './pages/SystemError';
 
 // Componente para monitorar estado da rede
 function NetworkMonitor() {
@@ -138,32 +147,101 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route>
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+      </Route>
+      <Route element={<ProtectedLayout />}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/vehicles/new" element={<AddVehicle />} />
+      </Route>
+      <Route element={<AdminLayout />}>
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/brands" element={<BrandsManager />} />
+        <Route path="/admin/models" element={<ModelsManager />} />
+      </Route>
+      <Route path="/system-error" element={<SystemError />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Route>
+  ),
+  {
+    future: {
+      v7_startTransition: true,
+      v7_relativeSplatPath: true
+    }
+  }
+);
+
 function App() {
+  const [showEmergencyReset, setShowEmergencyReset] = useState(false);
+
+  // Detectar Ctrl+Alt+R para mostrar botão de emergência
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.altKey && e.key === 'r') {
+        setShowEmergencyReset(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleEmergencyReset = () => {
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      document.cookie.split(";").forEach(cookie => {
+        const [name] = cookie.trim().split("=");
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      });
+      alert('Emergência: Todos os dados foram limpos! A página será recarregada.');
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Erro ao limpar dados:', error);
+      alert('Erro ao limpar dados: ' + (error as Error).message);
+    }
+  };
+
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
           <CssBaseline />
           <NetworkMonitor />
-          <BrowserRouter>
-            <Routes>
-              <Route element={<AuthLayout />}>
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-              </Route>
-              <Route element={<ProtectedLayout />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/vehicles/new" element={<AddVehicle />} />
-              </Route>
-              <Route element={<AdminLayout />}>
-                <Route path="/admin" element={<AdminDashboard />} />
-                <Route path="/admin/brands" element={<BrandsManager />} />
-                <Route path="/admin/models" element={<ModelsManager />} />
-              </Route>
-              <Route path="*" element={<Navigate to="/login" replace />} />
-            </Routes>
-          </BrowserRouter>
+          <RouterProvider router={router} />
+
+          {showEmergencyReset && (
+            <Box
+              sx={{
+                position: 'fixed',
+                bottom: 20,
+                right: 20,
+                zIndex: 9999,
+              }}
+            >
+              <Button
+                variant="contained"
+                color="error"
+                onClick={handleEmergencyReset}
+                sx={{
+                  boxShadow: '0 0 10px rgba(255,0,0,0.5)',
+                  animation: 'pulse 1.5s infinite',
+                  '@keyframes pulse': {
+                    '0%': { boxShadow: '0 0 0 0 rgba(255,0,0,0.7)' },
+                    '70%': { boxShadow: '0 0 0 10px rgba(255,0,0,0)' },
+                    '100%': { boxShadow: '0 0 0 0 rgba(255,0,0,0)' },
+                  },
+                }}
+              >
+                Limpar Dados (Emergência)
+              </Button>
+            </Box>
+          )}
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

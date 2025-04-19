@@ -1,43 +1,31 @@
+import { useSnackbar } from 'notistack';
 import React, { useEffect } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
-import { Box, CircularProgress, Typography, AppBar, Toolbar, Container, Button, Stack } from '@mui/material';
+import { useNavigate, Outlet } from 'react-router-dom';
+import { Box, CircularProgress, Container, Typography, Button } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import AdminSidebar from '../components/admin/AdminSidebar';
-import { RefreshCw, AlertTriangle } from 'lucide-react';
+import AdminAppBar from '../components/admin/AdminAppBar';
 
 export default function AdminLayout() {
-  const { user, userProfile, loading, loadingError, isAdmin, retryConnection } = useAuth();
-  
-  // Log para depuração
-  useEffect(() => {
-    console.log('AdminLayout - Estados:', { loading, isAuthenticated: !!user, isAdmin, error: loadingError });
-  }, [user, loading, isAdmin, loadingError]);
-  
-  // Adicionar timeout de segurança para evitar carregamento infinito
-  const [loadingTimeout, setLoadingTimeout] = React.useState(false);
+  const navigate = useNavigate();
+  const { loading, isAuthenticated, isAdmin, loadingError } = useAuth();
+  const { enqueueSnackbar } = useSnackbar();
   
   useEffect(() => {
-    // Se estiver carregando por mais de 10 segundos, mostrar botão de reload
-    const timer = setTimeout(() => {
-      if (loading) {
-        console.error('Timeout de carregamento atingido no AdminLayout');
-        setLoadingTimeout(true);
-      }
-    }, 10000);
+    console.log('AdminLayout - loading:', loading, 'isAuthenticated:', isAuthenticated, 'isAdmin:', isAdmin, 'loadingError:', loadingError);
     
-    return () => clearTimeout(timer);
-  }, [loading]);
-
-  const handleReload = () => {
-    console.log('Recarregando a página...');
-    window.location.reload();
-  };
-  
-  const handleRetry = () => {
-    console.log('Tentando reconectar...');
-    setLoadingTimeout(false);
-    retryConnection();
-  };
+    if (!loading && !isAuthenticated) {
+      navigate('/login');
+    }
+    
+    if (!loading && isAuthenticated && !isAdmin) {
+      enqueueSnackbar('Acesso não autorizado. Você precisa ser um administrador.', {
+        variant: 'error',
+        autoHideDuration: 3000
+      });
+      navigate('/');
+    }
+  }, [loading, isAuthenticated, isAdmin, navigate]);
 
   if (loading) {
     return (
@@ -47,62 +35,73 @@ export default function AdminLayout() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          height: '100vh',
-          background: 'linear-gradient(135deg, rgba(25, 118, 210, 0.1), rgba(156, 39, 176, 0.1))',
+          minHeight: '100vh',
+          gap: 2,
+          background: 'linear-gradient(45deg, #1a237e 30%, #283593 90%)'
         }}
       >
-        <CircularProgress size={60} thickness={4} />
-        <Typography variant="h6" sx={{ mt: 2 }}>
-          Carregando painel administrativo...
+        <CircularProgress size={60} thickness={4} sx={{ color: 'white' }} />
+        <Typography variant="h6" sx={{ color: 'white', mt: 2 }}>
+          Carregando...
         </Typography>
-        
-        {(loadingTimeout || loadingError) && (
-          <Box sx={{ mt: 4, textAlign: 'center', maxWidth: '400px' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 2 }}>
-              <AlertTriangle color="#f44336" size={24} />
-              <Typography variant="body1" color="error" sx={{ ml: 1 }}>
-                {loadingError 
-                  ? 'Erro de conexão com o servidor.' 
-                  : 'O carregamento está demorando mais do que o esperado.'}
-              </Typography>
-            </Box>
-            
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Isso pode ocorrer devido a problemas de rede ou servidor. Você pode tentar:
-            </Typography>
-            
-            <Stack direction="row" spacing={2} justifyContent="center">
-              <Button 
-                variant="outlined" 
-                color="primary" 
-                onClick={handleRetry}
-                startIcon={<RefreshCw size={16} />}
-              >
-                Reconectar
-              </Button>
-              
-              <Button 
-                variant="contained" 
-                color="primary" 
-                onClick={handleReload}
-              >
-                Recarregar Página
-              </Button>
-            </Stack>
-          </Box>
-        )}
       </Box>
     );
   }
 
-  // Verifica se o usuário está autenticado
-  if (!user) {
-    return <Navigate to="/login" replace />;
+  if (loadingError) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          gap: 2,
+          background: 'linear-gradient(45deg, #c62828 30%, #d32f2f 90%)'
+        }}
+      >
+        <Typography variant="h5" sx={{ color: 'white', textAlign: 'center', mb: 2 }}>
+          Erro ao carregar os dados
+        </Typography>
+        <Typography variant="body1" sx={{ color: 'white', textAlign: 'center', mb: 3 }}>
+          Ocorreu um erro ao tentar conectar com o servidor.
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          <Button
+            variant="contained"
+            onClick={() => window.location.reload()}
+            sx={{
+              bgcolor: 'white',
+              color: '#c62828',
+              '&:hover': {
+                bgcolor: '#f5f5f5'
+              }
+            }}
+          >
+            Recarregar página
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/')}
+            sx={{
+              color: 'white',
+              borderColor: 'white',
+              '&:hover': {
+                borderColor: '#f5f5f5',
+                bgcolor: 'rgba(255,255,255,0.1)'
+              }
+            }}
+          >
+            Voltar ao início
+          </Button>
+        </Box>
+      </Box>
+    );
   }
 
-  // Verifica se o usuário tem permissão de administrador
   if (!isAdmin) {
-    return <Navigate to="/dashboard" replace />;
+    return null;
   }
 
   return (
@@ -112,29 +111,13 @@ export default function AdminLayout() {
         component="main"
         sx={{
           flexGrow: 1,
+          height: '100vh',
           overflow: 'auto',
-          background: 'linear-gradient(135deg, rgba(25, 118, 210, 0.05), rgba(156, 39, 176, 0.05))',
+          bgcolor: '#f5f5f5'
         }}
       >
-        <AppBar 
-          position="sticky" 
-          elevation={0}
-          color="inherit"
-          sx={{
-            backdropFilter: 'blur(10px)',
-            borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
-          }}
-        >
-          <Toolbar>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              AutoTrackr - Área Administrativa
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {userProfile?.name || userProfile?.email || 'Administrador'}
-            </Typography>
-          </Toolbar>
-        </AppBar>
-        <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+        <AdminAppBar />
+        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
           <Outlet />
         </Container>
       </Box>

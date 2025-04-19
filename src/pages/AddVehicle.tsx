@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -17,44 +17,53 @@ import {
   CircularProgress,
   Snackbar,
   IconButton,
+  Paper,
+  Grid,
 } from '@mui/material';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '@mui/material/styles';
-import fipeApi, { FipeBrand, FipeModel, FipeYear } from '../services/fipeApi';
+import { useSnackbar } from 'notistack';
+import { getBrands, getModels, getYears, FipeBrand, FipeModel, FipeYear, FipeModelResponse } from '../services/fipeApi';
 
 // Tipagem para os dados do formulário
 interface FormData {
-  fipeBrandCode: string;
-  fipeModelCode: string;
-  fipeYearCode: string;
+  brand: string;
+  model: string;
+  year: string;
   plate: string;
   mileage: string;
-  customBrand: string;
-  customModel: string;
+  color: string;
+  vin: string;
+  details: string;
 }
 
 export default function AddVehicle() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const theme = useTheme();
+  const { enqueueSnackbar } = useSnackbar();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [selectedBrandName, setSelectedBrandName] = useState('');
+  const [selectedModelName, setSelectedModelName] = useState('');
+  const mounted = useRef(true);
   const [formData, setFormData] = useState<FormData>({
-    fipeBrandCode: '',
-    fipeModelCode: '',
-    fipeYearCode: '',
+    brand: '',
+    model: '',
+    year: '',
     plate: '',
     mileage: '',
-    customBrand: '',
-    customModel: '',
+    color: '',
+    vin: '',
+    details: ''
   });
 
   // Estados para dados da API FIPE
-  const [fipeBrands, setFipeBrands] = useState<FipeBrand[]>([]);
-  const [fipeModels, setFipeModels] = useState<FipeModel[]>([]);
-  const [fipeYears, setFipeYears] = useState<FipeYear[]>([]);
+  const [brands, setBrands] = useState<FipeBrand[]>([]);
+  const [models, setModels] = useState<FipeModel[]>([]);
+  const [years, setYears] = useState<FipeYear[]>([]);
   const [loadingBrands, setLoadingBrands] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const [loadingYears, setLoadingYears] = useState(false);
@@ -62,100 +71,97 @@ export default function AddVehicle() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
 
+  // Cleanup ao desmontar
+  useEffect(() => {
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  const safeSetState = (setter: Function, value: any) => {
+    if (mounted.current) {
+      setter(value);
+    }
+  };
+
   // Buscar marcas da API FIPE ao carregar a página
-  const fetchFipeBrands = useCallback(async () => {
+  const loadBrands = async () => {
     setLoadingBrands(true);
-    setApiError('');
-    
     try {
-      const brands = await fipeApi.getBrands();
-      setFipeBrands(brands);
-    } catch (err) {
-      console.error('Erro ao buscar marcas da API FIPE:', err);
-      setApiError('Não foi possível carregar as marcas dos veículos. Por favor, tente novamente.');
+      const brands = await getBrands();
+      setBrands(brands);
+    } catch (error) {
+      console.error('Error loading brands:', error);
+      setError('Erro ao carregar as marcas. Por favor, tente novamente.');
     } finally {
       setLoadingBrands(false);
     }
-  }, []);
+  };
 
   // Buscar modelos da marca selecionada
-  const fetchFipeModels = useCallback(async (brandCode: string) => {
-    if (!brandCode) {
-      setFipeModels([]);
-      return;
-    }
-    
+  const loadModels = async (brandId: string) => {
     setLoadingModels(true);
-    setApiError('');
-    
     try {
-      const response = await fipeApi.getModels(brandCode);
-      setFipeModels(response.modelos);
-    } catch (err) {
-      console.error(`Erro ao buscar modelos para a marca ${brandCode}:`, err);
-      setApiError('Não foi possível carregar os modelos para esta marca. Por favor, tente novamente.');
+      const response = await getModels(brandId);
+      setModels(response.models);
+    } catch (error) {
+      console.error('Error loading models:', error);
+      setError('Erro ao carregar os modelos. Por favor, tente novamente.');
     } finally {
       setLoadingModels(false);
     }
-  }, []);
+  };
 
   // Buscar anos do modelo selecionado
-  const fetchFipeYears = useCallback(async (brandCode: string, modelCode: string) => {
-    if (!brandCode || !modelCode) {
-      setFipeYears([]);
-      return;
-    }
-    
+  const loadYears = async (brandId: string, modelId: string) => {
     setLoadingYears(true);
-    setApiError('');
-    
     try {
-      const years = await fipeApi.getYears(brandCode, modelCode);
-      setFipeYears(years);
-    } catch (err) {
-      console.error(`Erro ao buscar anos para o modelo ${modelCode}:`, err);
-      setApiError('Não foi possível carregar os anos para este modelo. Por favor, tente novamente.');
+      const years = await getYears(brandId, modelId);
+      setYears(years);
+    } catch (error) {
+      console.error('Error loading years:', error);
+      setError('Erro ao carregar os anos. Por favor, tente novamente.');
     } finally {
       setLoadingYears(false);
     }
-  }, []);
+  };
 
   // Carregar marcas ao iniciar
   useEffect(() => {
-    fetchFipeBrands();
-  }, [fetchFipeBrands]);
+    loadBrands();
+  }, [loadBrands]);
 
   // Buscar modelos quando a marca for selecionada
   useEffect(() => {
-    if (formData.fipeBrandCode && formData.fipeBrandCode !== 'custom') {
-      fetchFipeModels(formData.fipeBrandCode);
+    if (formData.brand && formData.brand !== 'custom') {
+      loadModels(formData.brand);
     }
-  }, [formData.fipeBrandCode, fetchFipeModels]);
+  }, [formData.brand, loadModels]);
 
   // Buscar anos quando o modelo for selecionado
   useEffect(() => {
-    if (formData.fipeBrandCode && formData.fipeModelCode && formData.fipeModelCode !== 'custom') {
-      fetchFipeYears(formData.fipeBrandCode, formData.fipeModelCode);
+    if (formData.brand && formData.model && formData.model !== 'custom') {
+      loadYears(formData.brand, formData.model);
     }
-  }, [formData.fipeBrandCode, formData.fipeModelCode, fetchFipeYears]);
+  }, [formData.brand, formData.model, loadYears]);
 
-  const handleRefreshFipeBrands = () => {
-    fetchFipeBrands();
+  const handleRefreshBrands = () => {
+    loadBrands();
     setSnackbarMessage('Atualizando lista de marcas...');
     setSnackbarOpen(true);
   };
   
-  const handleRefreshFipeModels = () => {
-    if (formData.fipeBrandCode && formData.fipeBrandCode !== 'custom') {
-      fetchFipeModels(formData.fipeBrandCode);
+  const handleRefreshModels = () => {
+    if (formData.brand && formData.brand !== 'custom') {
+      loadModels(formData.brand);
       setSnackbarMessage('Atualizando lista de modelos...');
       setSnackbarOpen(true);
     }
   };
 
-  const handleRefreshFipeYears = () => {
-    if (formData.fipeBrandCode && formData.fipeModelCode && formData.fipeModelCode !== 'custom') {
-      fetchFipeYears(formData.fipeBrandCode, formData.fipeModelCode);
+  const handleRefreshYears = () => {
+    if (formData.brand && formData.model && formData.model !== 'custom') {
+      loadYears(formData.brand, formData.model);
       setSnackbarMessage('Atualizando lista de anos...');
       setSnackbarOpen(true);
     }
@@ -165,179 +171,155 @@ export default function AddVehicle() {
     setSnackbarOpen(false);
   };
 
-  const handleTextFieldChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement | { name?: string; value: unknown }>) => {
+    const { name, value } = event.target;
+    if (!name) return;
 
-  const handleSelectChange = (e: SelectChangeEvent) => {
-    const { name, value } = e.target;
-    
-    // Resetar valores dependentes quando mudar marca ou modelo
-    if (name === 'fipeBrandCode') {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value,
-        fipeModelCode: '',
-        fipeYearCode: '',
-      }));
-    } else if (name === 'fipeModelCode') {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value,
-        fipeYearCode: '',
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value,
-      }));
+    setFormData(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'brand') {
+      setFormData(prev => ({ ...prev, model: '', year: '' }));
+      setModels([]);
+      setYears([]);
+      if (value) {
+        loadModels(value as string);
+      }
+    } else if (name === 'model') {
+      setFormData(prev => ({ ...prev, year: '' }));
+      setYears([]);
+      if (value && formData.brand) {
+        loadYears(formData.brand, value as string);
+      }
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!user) return;
 
     try {
-      // Determinar a marca e modelo (da API FIPE ou personalizada)
-      let selectedBrandName = '';
-      let selectedModelName = '';
-      let selectedYear = 0;
-      
-      // Buscar marca
-      if (formData.fipeBrandCode === 'custom') {
-        if (!formData.customBrand || formData.customBrand.trim() === '') {
-          setError('Por favor, informe o nome da marca.');
-          setLoading(false);
-          return;
+      setLoading(true);
+
+      // Validação dos campos obrigatórios
+      if (!formData.brand || !formData.model || !formData.year || !formData.plate || !formData.mileage) {
+        enqueueSnackbar('Por favor, preencha todos os campos obrigatórios', { 
+          variant: 'error',
+          autoHideDuration: 3000
+        });
+        return;
+      }
+
+      // Buscar ou criar a marca
+      console.log('Procurando/criando marca:', formData.brand);
+      const selectedBrand = brands.find(b => b.code === formData.brand);
+      if (!selectedBrand) {
+        throw new Error('Marca não encontrada');
+      }
+
+      let { data: existingBrand, error: brandError } = await supabase
+        .from('brands')
+        .select('id')
+        .eq('api_code', formData.brand)
+        .single();
+
+      if (brandError && brandError.code !== 'PGRST116') {
+        console.error('Erro ao buscar marca:', brandError);
+        throw brandError;
+      }
+
+      let brandId;
+      if (!existingBrand) {
+        const { data: newBrand, error: createBrandError } = await supabase
+          .from('brands')
+          .insert({
+            name: selectedBrand.name,
+            api_code: selectedBrand.code
+          })
+          .select('id')
+          .single();
+
+        if (createBrandError) {
+          console.error('Erro ao criar marca:', createBrandError);
+          throw createBrandError;
         }
-        selectedBrandName = formData.customBrand.trim();
+        brandId = newBrand.id;
       } else {
-        const selectedBrand = fipeBrands.find(b => b.codigo === formData.fipeBrandCode);
-        if (selectedBrand) {
-          selectedBrandName = selectedBrand.nome;
-        } else {
-          setError('Marca não encontrada. Por favor, selecione novamente.');
-          setLoading(false);
-          return;
-        }
+        brandId = existingBrand.id;
       }
-      
-      // Buscar modelo
-      if (formData.fipeModelCode === 'custom') {
-        if (!formData.customModel || formData.customModel.trim() === '') {
-          setError('Por favor, informe o nome do modelo.');
-          setLoading(false);
-          return;
+
+      // Buscar ou criar o modelo
+      console.log('Procurando/criando modelo:', formData.model);
+      const selectedModel = models.find(m => m.code === formData.model);
+      if (!selectedModel) {
+        throw new Error('Modelo não encontrado');
+      }
+
+      let { data: existingModel, error: modelError } = await supabase
+        .from('models')
+        .select('id')
+        .eq('api_code', formData.model)
+        .eq('brand_id', brandId)
+        .single();
+
+      if (modelError && modelError.code !== 'PGRST116') {
+        console.error('Erro ao buscar modelo:', modelError);
+        throw modelError;
+      }
+
+      let modelId;
+      if (!existingModel) {
+        const { data: newModel, error: createModelError } = await supabase
+          .from('models')
+          .insert({
+            name: selectedModel.name,
+            api_code: selectedModel.code,
+            brand_id: brandId
+          })
+          .select('id')
+          .single();
+
+        if (createModelError) {
+          console.error('Erro ao criar modelo:', createModelError);
+          throw createModelError;
         }
-        selectedModelName = formData.customModel.trim();
+        modelId = newModel.id;
       } else {
-        const selectedModel = fipeModels.find(m => m.codigo === formData.fipeModelCode);
-        if (selectedModel) {
-          selectedModelName = selectedModel.nome;
-        } else {
-          setError('Modelo não encontrado. Por favor, selecione novamente.');
-          setLoading(false);
-          return;
-        }
-      }
-      
-      // Buscar ano
-      if (formData.fipeYearCode) {
-        const selectedFipeYear = fipeYears.find(y => y.codigo === formData.fipeYearCode);
-        if (selectedFipeYear) {
-          // A API FIPE retorna o ano como "2022-1" (ano-combustível)
-          // Vamos extrair apenas o ano
-          const yearPart = selectedFipeYear.nome.split(' ')[0];
-          selectedYear = parseInt(yearPart);
-        }
+        modelId = existingModel.id;
       }
 
-      // Validar que temos valores obrigatórios
-      if (!selectedBrandName) {
-        setError('Não foi possível determinar a marca. Por favor, tente novamente.');
-        setLoading(false);
-        return;
-      }
-      
-      if (!selectedModelName) {
-        setError('Não foi possível determinar o modelo. Por favor, tente novamente.');
-        setLoading(false);
-        return;
-      }
-      
-      if (!selectedYear && !formData.fipeBrandCode.includes('custom')) {
-        setError('Por favor, selecione o ano do veículo.');
-        setLoading(false);
-        return;
-      }
-
-      // Validar campo de quilometragem
-      if (!formData.mileage) {
-        setError('Por favor, informe a quilometragem do veículo.');
-        setLoading(false);
-        return;
-      }
-
-      // Validar campo de placa
-      if (!formData.plate) {
-        setError('Por favor, informe a placa do veículo.');
-        setLoading(false);
-        return;
-      }
-
-      console.log('Enviando veículo:', {
-        marca: selectedBrandName,
-        modelo: selectedModelName,
-        placa: formData.plate.toUpperCase(),
-        ano: selectedYear,
-        quilometragem: parseInt(formData.mileage)
-      });
-
-      // Inserir no banco de dados
-      const { error: supabaseError } = await supabase
+      // Criar o veículo
+      console.log('Criando veículo...');
+      const { error: vehicleError } = await supabase
         .from('vehicles')
-        .insert([
-          {
-            user_id: user?.id,
-            brand: selectedBrandName,
-            model: selectedModelName,
-            plate: formData.plate.toUpperCase(),
-            year: selectedYear,
-            mileage: parseInt(formData.mileage),
-            created_at: new Date().toISOString()
-          },
-        ]);
+        .insert({
+          user_id: user.id,
+          brand_id: brandId,
+          model_id: modelId,
+          plate: formData.plate.toUpperCase(),
+          year: parseInt(formData.year),
+          mileage: parseInt(formData.mileage),
+          color: formData.color || null,
+          vin: formData.vin || null,
+          details: formData.details || null,
+          api_year_code: formData.year
+        });
 
-      if (supabaseError) {
-        console.error('Erro do Supabase:', supabaseError);
-        
-        if (supabaseError.code === '42P01') {
-          setError('A tabela de veículos não existe. Execute o script SQL para criar as tabelas necessárias.');
-          setLoading(false);
-          return;
-        }
-        
-        throw new Error(supabaseError.message || 'Erro ao cadastrar veículo');
+      if (vehicleError) {
+        console.error('Erro ao criar veículo:', vehicleError);
+        throw vehicleError;
       }
 
-      // Sucesso
-      setSnackbarMessage('Veículo cadastrado com sucesso!');
-      setSnackbarOpen(true);
-      
-      // Redirecionar após mostrar a mensagem
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 1500);
-      
-    } catch (err) {
-      console.error('Erro ao cadastrar veículo:', err);
-      setError('Erro ao cadastrar veículo. Por favor, tente novamente.');
+      enqueueSnackbar('Veículo adicionado com sucesso!', { 
+        variant: 'success',
+        autoHideDuration: 3000
+      });
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Erro ao adicionar veículo:', error);
+      enqueueSnackbar(error.message || 'Erro ao adicionar veículo', { 
+        variant: 'error',
+        autoHideDuration: 3000
+      });
     } finally {
       setLoading(false);
     }
@@ -345,277 +327,148 @@ export default function AddVehicle() {
 
   return (
     <Container maxWidth="md">
-      <Box sx={{ py: 4 }}>
-        <Button
-          startIcon={<ArrowLeft />}
-          onClick={() => navigate('/dashboard')}
-          sx={{ mb: 3 }}
-        >
-          Voltar
-        </Button>
-        
+      <Box sx={{ mt: 4, mb: 4 }}>
         <Typography variant="h4" component="h1" gutterBottom>
           Adicionar Veículo
         </Typography>
-        
-        {apiError && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            {apiError}
-            <Typography variant="body2" mt={1}>
-              Você pode continuar usando a opção "Inserir manualmente" nos campos abaixo.
-            </Typography>
-          </Alert>
-        )}
-        
-        {(error && error.includes('tabela')) && (
-          <Alert 
-            severity="warning" 
-            sx={{ mb: 3 }}
-            action={
-              <Button 
-                color="inherit" 
-                size="small" 
-                onClick={() => {
-                  setSnackbarMessage('Para criar as tabelas, execute o script SQL no Console do Supabase');
-                  setSnackbarOpen(true);
-                  
-                  // Mostrar instruções mais detalhadas
-                  setError(`
-                    Para resolver este problema:
-                    1. Acesse o Console do Supabase (supabase.com)
-                    2. Vá para o projeto usado nesta aplicação
-                    3. Clique em "SQL Editor" no menu
-                    4. Crie um novo script e cole o conteúdo do arquivo setup_tables.sql
-                    5. Execute o script e retorne a este formulário
-                  `);
-                }}
-              >
-                Ver Solução
-              </Button>
-            }
-          >
-            {error}
-          </Alert>
-        )}
-        
-        <Card sx={{ p: 3, mb: 3 }}>
-          <form onSubmit={handleSubmit}>
-            <Stack spacing={3}>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Os dados de marca, modelo e ano são obtidos da Tabela FIPE oficial.
-                Selecione as opções ou insira manualmente caso seu veículo não esteja na lista.
-              </Alert>
-              
-              {/* Campo de Marca */}
-              <FormControl fullWidth>
-                <InputLabel id="brand-label">Marca</InputLabel>
-                <Select
-                  labelId="brand-label"
-                  id="fipeBrandCode"
-                  name="fipeBrandCode"
-                  value={formData.fipeBrandCode}
-                  label="Marca"
-                  onChange={handleSelectChange}
-                  required
-                  disabled={loadingBrands}
-                  endAdornment={
-                    loadingBrands ? (
-                      <CircularProgress size={20} sx={{ mr: 2 }} />
-                    ) : (
-                      <IconButton 
-                        onClick={handleRefreshFipeBrands}
-                        size="small"
-                        sx={{ mr: 1 }}
-                        title="Atualizar marcas"
-                        disabled={loadingBrands}
-                      >
-                        <RefreshCw size={18} />
-                      </IconButton>
-                    )
-                  }
-                >
-                  {fipeBrands.map(brand => (
-                    <MenuItem key={brand.codigo} value={brand.codigo}>
-                      {brand.nome}
-                    </MenuItem>
-                  ))}
-                  <MenuItem value="custom" sx={{ borderTop: '1px solid #eee', mt: 1, color: 'primary.main' }}>
-                    Inserir manualmente...
-                  </MenuItem>
-                </Select>
-              </FormControl>
-              
-              {formData.fipeBrandCode === 'custom' && (
-                <TextField
-                  label="Nome da Marca"
-                  name="customBrand"
-                  value={formData.customBrand || ''}
-                  onChange={handleTextFieldChange}
-                  required={formData.fipeBrandCode === 'custom'}
-                  fullWidth
-                  placeholder="Ex: Volkswagen, Chevrolet, Toyota..."
-                />
-              )}
-              
-              {/* Campo de Modelo */}
-              <FormControl fullWidth>
-                <InputLabel id="model-label">Modelo</InputLabel>
-                <Select
-                  labelId="model-label"
-                  id="fipeModelCode"
-                  name="fipeModelCode"
-                  value={formData.fipeModelCode}
-                  label="Modelo"
-                  onChange={handleSelectChange}
-                  required
-                  disabled={!formData.fipeBrandCode || formData.fipeBrandCode === 'custom' || loadingModels}
-                  endAdornment={
-                    loadingModels ? (
-                      <CircularProgress size={20} sx={{ mr: 2 }} />
-                    ) : (
-                      <IconButton 
-                        onClick={handleRefreshFipeModels}
-                        size="small"
-                        sx={{ mr: 1 }}
-                        title="Atualizar modelos"
-                        disabled={!formData.fipeBrandCode || formData.fipeBrandCode === 'custom' || loadingModels}
-                      >
-                        <RefreshCw size={18} />
-                      </IconButton>
-                    )
-                  }
-                >
-                  {fipeModels.map(model => (
-                    <MenuItem key={model.codigo} value={model.codigo}>
-                      {model.nome}
-                    </MenuItem>
-                  ))}
-                  {formData.fipeBrandCode && formData.fipeBrandCode !== 'custom' && (
-                    <MenuItem value="custom" sx={{ borderTop: '1px solid #eee', mt: 1, color: 'primary.main' }}>
-                      Inserir manualmente...
-                    </MenuItem>
-                  )}
-                </Select>
-              </FormControl>
-              
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, mb: 1, display: 'block' }}>
-                Modelos conforme Tabela FIPE oficial.
-              </Typography>
-              
-              {formData.fipeModelCode === 'custom' && (
-                <TextField
-                  autoFocus
-                  margin="dense"
-                  label="Nome do Modelo"
-                  name="customModel"
-                  fullWidth
-                  value={formData.customModel || ''}
-                  onChange={handleTextFieldChange}
-                  required={formData.fipeModelCode === 'custom'}
-                  placeholder="Ex: Onix LT 1.4, Gol G6 1.0, Hilux SRX 2.8 Diesel 4x4..."
-                />
-              )}
-              
-              {/* Campo de Ano */}
-              <FormControl fullWidth>
-                <InputLabel id="year-label">Ano</InputLabel>
-                <Select
-                  labelId="year-label"
-                  id="fipeYearCode"
-                  name="fipeYearCode"
-                  value={formData.fipeYearCode}
-                  label="Ano"
-                  onChange={handleSelectChange}
-                  required={formData.fipeBrandCode !== 'custom' && formData.fipeModelCode !== 'custom'}
-                  disabled={!formData.fipeModelCode || formData.fipeModelCode === 'custom' || loadingYears || formData.fipeBrandCode === 'custom'}
-                  endAdornment={
-                    loadingYears ? (
-                      <CircularProgress size={20} sx={{ mr: 2 }} />
-                    ) : (
-                      <IconButton 
-                        onClick={handleRefreshFipeYears}
-                        size="small"
-                        sx={{ mr: 1 }}
-                        title="Atualizar anos"
-                        disabled={
-                          !formData.fipeBrandCode || 
-                          !formData.fipeModelCode || 
-                          formData.fipeModelCode === 'custom' || 
-                          formData.fipeBrandCode === 'custom' ||
-                          loadingYears
-                        }
-                      >
-                        <RefreshCw size={18} />
-                      </IconButton>
-                    )
-                  }
-                >
-                  {fipeYears.map(year => (
-                    <MenuItem key={year.codigo} value={year.codigo}>
-                      {year.nome}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              {/* Campo de Placa */}
+        <form onSubmit={handleSubmit}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} sm={6}>
               <TextField
+                select
+                fullWidth
+                label="Marca"
+                name="brand"
+                value={formData.brand}
+                onChange={handleChange}
+                disabled={loadingBrands}
+                required
+              >
+                {loadingBrands ? (
+                  <MenuItem value="">
+                    <CircularProgress size={20} /> Carregando...
+                  </MenuItem>
+                ) : (
+                  brands.map((brand) => (
+                    <MenuItem key={brand.code} value={brand.code}>
+                      {brand.name}
+                    </MenuItem>
+                  ))
+                )}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                label="Modelo"
+                name="model"
+                value={formData.model}
+                onChange={handleChange}
+                disabled={loadingModels || !formData.brand}
+                required
+              >
+                {loadingModels ? (
+                  <MenuItem value="">
+                    <CircularProgress size={20} /> Carregando...
+                  </MenuItem>
+                ) : (
+                  models.map((model) => (
+                    <MenuItem key={model.code} value={model.code}>
+                      {model.name}
+                    </MenuItem>
+                  ))
+                )}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                label="Ano"
+                name="year"
+                value={formData.year}
+                onChange={handleChange}
+                disabled={loadingYears || !formData.model}
+                required
+              >
+                {loadingYears ? (
+                  <MenuItem value="">
+                    <CircularProgress size={20} /> Carregando...
+                  </MenuItem>
+                ) : (
+                  years.map((year) => (
+                    <MenuItem key={year.code} value={year.code}>
+                      {year.name}
+                    </MenuItem>
+                  ))
+                )}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
                 label="Placa"
                 name="plate"
                 value={formData.plate}
-                onChange={handleTextFieldChange}
+                onChange={handleChange}
                 required
-                fullWidth
-                inputProps={{ maxLength: 7 }}
-                placeholder="Ex: ABC1234"
               />
-              
-              {/* Campo de Quilometragem */}
+            </Grid>
+            <Grid item xs={12} sm={6}>
               <TextField
+                fullWidth
                 label="Quilometragem"
                 name="mileage"
                 type="number"
                 value={formData.mileage}
-                onChange={handleTextFieldChange}
+                onChange={handleChange}
                 required
-                fullWidth
-                inputProps={{ min: 0 }}
-                placeholder="Ex: 15000"
               />
-              
-              {error && !error.includes('tabela') && (
-                <Alert severity="error">
-                  {error}
-                </Alert>
-              )}
-              
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Cor"
+                name="color"
+                value={formData.color}
+                onChange={handleChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="VIN/Chassi"
+                name="vin"
+                value={formData.vin}
+                onChange={handleChange}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Detalhes"
+                name="details"
+                multiline
+                rows={4}
+                value={formData.details}
+                onChange={handleChange}
+              />
+            </Grid>
+            <Grid item xs={12}>
               <Button
                 type="submit"
                 variant="contained"
                 color="primary"
-                size="large"
                 disabled={loading}
-                sx={{ 
-                  mt: 2,
-                  backgroundColor: theme.palette.primary.main,
-                  '&:hover': {
-                    backgroundColor: theme.palette.primary.dark,
-                  }
-                }}
+                startIcon={loading && <CircularProgress size={20} color="inherit" />}
               >
-                {loading ? <CircularProgress size={24} color="inherit" /> : 'Salvar Veículo'}
+                {loading ? 'Cadastrando...' : 'Cadastrar Veículo'}
               </Button>
-            </Stack>
-          </form>
-        </Card>
+            </Grid>
+          </Grid>
+        </form>
       </Box>
-      
-      <Snackbar
-        open={snackbarOpen}
-        autoHideDuration={3000}
-        onClose={handleCloseSnackbar}
-        message={snackbarMessage}
-      />
     </Container>
   );
 }

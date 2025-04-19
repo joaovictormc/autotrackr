@@ -222,7 +222,7 @@ export default function Dashboard() {
                       color: theme.palette.primary.main 
                     }}
                   >
-                    Bem-vindo(a), {userProfile?.name || user?.email || 'Usuário'}
+                    Bem-vindo(a), {userProfile?.name || userProfile?.email || user?.email || 'Usuário'}
                   </Typography>
                   <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
                     O que você gostaria de fazer hoje?
