@@ -32,11 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingError, setLoadingError] = useState(false);
-  const mounted = useRef(true);
-
-  useEffect(() => {
-    return () => { mounted.current = false; };
-  }, []);
+  const mounted = useRef(false);
 
   const applyAuth = (profile: UserProfile, token: string) => {
     setAccessToken(token);
@@ -45,20 +41,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearAuth = () => {
     setAccessToken(null);
-    if (mounted.current) { setUser(null); }
+    if (mounted.current) setUser(null);
   };
 
   const tryRefreshSession = async () => {
-    if (!mounted.current) return;
     try {
-      // Usa axios puro para não passar pelo interceptor da instância `api`,
-      // evitando o loop infinito quando não há cookie de sessão.
       const { data } = await axios.post(
         `${API_URL}/auth/refresh`,
         {},
         { withCredentials: true },
       );
-      if (data?.accessToken) {
+      if (data?.accessToken && mounted.current) {
         setAccessToken(data.accessToken);
         const profile = await authApi.getMe();
         if (mounted.current) setUser(profile);
@@ -66,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // 401 = sem sessão ativa — estado correto para usuário não logado
     } finally {
+      // Sempre desliga o loading, mesmo sem sessão
       if (mounted.current) {
         setLoading(false);
         setLoadingError(false);
@@ -74,11 +68,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Reset explícito para lidar corretamente com o StrictMode do React,
+    // que desmonta e remonta componentes — sem isso mounted.current ficaria
+    // false após o primeiro ciclo e setLoading(false) nunca seria chamado.
+    mounted.current = true;
+
     tryRefreshSession();
 
     const handleLogout = () => clearAuth();
     window.addEventListener('auth:logout', handleLogout);
-    return () => window.removeEventListener('auth:logout', handleLogout);
+    return () => {
+      mounted.current = false;
+      window.removeEventListener('auth:logout', handleLogout);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
