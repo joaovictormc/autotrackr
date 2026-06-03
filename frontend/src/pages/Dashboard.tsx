@@ -34,18 +34,10 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { vehiclesApi, Vehicle } from '../api/vehicles.api';
 import SettingsMenu from '../components/SettingsMenu';
 import ProfileMenu from '../components/ProfileMenu';
 
-interface Vehicle {
-  id: string;
-  brand: string;
-  model: string;
-  plate: string;
-  year: number;
-  mileage: number;
-}
 
 interface StatCardProps {
   icon: React.ElementType;
@@ -108,21 +100,12 @@ export default function Dashboard() {
     setProfileAnchorEl(event.currentTarget);
   };
 
-  // Função para buscar os veículos do usuário
   const fetchVehicles = async () => {
     setLoading(true);
     setError('');
-    
     try {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      setVehicles(data || []);
+      const data = await vehiclesApi.getMyVehicles();
+      setVehicles(data);
     } catch (err) {
       console.error('Erro ao buscar veículos:', err);
       setError('Não foi possível carregar seus veículos. Por favor, tente novamente.');
@@ -145,14 +128,12 @@ export default function Dashboard() {
   ];
 
   const vehicleColumns = [
-    { field: 'brand', headerName: 'Marca', flex: 1 },
-    { field: 'model', headerName: 'Modelo', flex: 1.5 },
+    { field: 'brandName', headerName: 'Marca', flex: 1, valueGetter: (params: { row: Vehicle }) => params.row.brand?.name ?? '' },
+    { field: 'modelName', headerName: 'Modelo', flex: 1.5, valueGetter: (params: { row: Vehicle }) => params.row.model?.name ?? '' },
     { field: 'plate', headerName: 'Placa', flex: 1 },
     { field: 'year', headerName: 'Ano', flex: 0.7, type: 'number' },
     { field: 'mileage', headerName: 'Quilometragem', flex: 0.8, type: 'number',
-      valueFormatter: (params: { value: number }) => {
-        return `${params.value.toLocaleString()} km`;
-      }
+      valueFormatter: (params: { value: number }) => `${params.value.toLocaleString()} km`,
     },
   ];
 

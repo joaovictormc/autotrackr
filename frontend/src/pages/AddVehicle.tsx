@@ -21,7 +21,7 @@ import {
   Grid,
 } from '@mui/material';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { vehiclesApi } from '../api/vehicles.api';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '@mui/material/styles';
 import { useSnackbar } from 'notistack';
@@ -195,131 +195,40 @@ export default function AddVehicle() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!user) return;
+
+    if (!formData.brand || !formData.model || !formData.year || !formData.plate || !formData.mileage) {
+      enqueueSnackbar('Por favor, preencha todos os campos obrigatórios', { variant: 'error', autoHideDuration: 3000 });
+      return;
+    }
+
+    const selectedBrand = brands.find(b => b.code === formData.brand);
+    const selectedModel = models.find(m => m.code === formData.model);
+
+    if (!selectedBrand || !selectedModel) {
+      enqueueSnackbar('Selecione uma marca e modelo válidos', { variant: 'error', autoHideDuration: 3000 });
+      return;
+    }
 
     try {
       setLoading(true);
-
-      // Validação dos campos obrigatórios
-      if (!formData.brand || !formData.model || !formData.year || !formData.plate || !formData.mileage) {
-        enqueueSnackbar('Por favor, preencha todos os campos obrigatórios', { 
-          variant: 'error',
-          autoHideDuration: 3000
-        });
-        return;
-      }
-
-      // Buscar ou criar a marca
-      console.log('Procurando/criando marca:', formData.brand);
-      const selectedBrand = brands.find(b => b.code === formData.brand);
-      if (!selectedBrand) {
-        throw new Error('Marca não encontrada');
-      }
-
-      let { data: existingBrand, error: brandError } = await supabase
-        .from('brands')
-        .select('id')
-        .eq('api_code', formData.brand)
-        .single();
-
-      if (brandError && brandError.code !== 'PGRST116') {
-        console.error('Erro ao buscar marca:', brandError);
-        throw brandError;
-      }
-
-      let brandId;
-      if (!existingBrand) {
-        const { data: newBrand, error: createBrandError } = await supabase
-          .from('brands')
-          .insert({
-            name: selectedBrand.name,
-            api_code: selectedBrand.code
-          })
-          .select('id')
-          .single();
-
-        if (createBrandError) {
-          console.error('Erro ao criar marca:', createBrandError);
-          throw createBrandError;
-        }
-        brandId = newBrand.id;
-      } else {
-        brandId = existingBrand.id;
-      }
-
-      // Buscar ou criar o modelo
-      console.log('Procurando/criando modelo:', formData.model);
-      const selectedModel = models.find(m => m.code === formData.model);
-      if (!selectedModel) {
-        throw new Error('Modelo não encontrado');
-      }
-
-      let { data: existingModel, error: modelError } = await supabase
-        .from('models')
-        .select('id')
-        .eq('api_code', formData.model)
-        .eq('brand_id', brandId)
-        .single();
-
-      if (modelError && modelError.code !== 'PGRST116') {
-        console.error('Erro ao buscar modelo:', modelError);
-        throw modelError;
-      }
-
-      let modelId;
-      if (!existingModel) {
-        const { data: newModel, error: createModelError } = await supabase
-          .from('models')
-          .insert({
-            name: selectedModel.name,
-            api_code: selectedModel.code,
-            brand_id: brandId
-          })
-          .select('id')
-          .single();
-
-        if (createModelError) {
-          console.error('Erro ao criar modelo:', createModelError);
-          throw createModelError;
-        }
-        modelId = newModel.id;
-      } else {
-        modelId = existingModel.id;
-      }
-
-      // Criar o veículo
-      console.log('Criando veículo...');
-      const { error: vehicleError } = await supabase
-        .from('vehicles')
-        .insert({
-          user_id: user.id,
-          brand_id: brandId,
-          model_id: modelId,
-          plate: formData.plate.toUpperCase(),
-          year: parseInt(formData.year),
-          mileage: parseInt(formData.mileage),
-          color: formData.color || null,
-          vin: formData.vin || null,
-          details: formData.details || null,
-          api_year_code: formData.year
-        });
-
-      if (vehicleError) {
-        console.error('Erro ao criar veículo:', vehicleError);
-        throw vehicleError;
-      }
-
-      enqueueSnackbar('Veículo adicionado com sucesso!', { 
-        variant: 'success',
-        autoHideDuration: 3000
+      await vehiclesApi.createVehicle({
+        brandName: selectedBrand.name,
+        brandApiCode: selectedBrand.code,
+        modelName: selectedModel.name,
+        modelApiCode: selectedModel.code,
+        plate: formData.plate,
+        year: parseInt(formData.year),
+        mileage: formData.mileage ? parseInt(formData.mileage) : 0,
+        color: formData.color || undefined,
+        vin: formData.vin || undefined,
+        details: formData.details || undefined,
+        apiYearCode: formData.year,
       });
+      enqueueSnackbar('Veículo adicionado com sucesso!', { variant: 'success', autoHideDuration: 3000 });
       navigate('/dashboard');
     } catch (error: any) {
-      console.error('Erro ao adicionar veículo:', error);
-      enqueueSnackbar(error.message || 'Erro ao adicionar veículo', { 
-        variant: 'error',
-        autoHideDuration: 3000
-      });
+      const msg = error.response?.data?.message || error.message || 'Erro ao adicionar veículo';
+      enqueueSnackbar(msg, { variant: 'error', autoHideDuration: 3000 });
     } finally {
       setLoading(false);
     }

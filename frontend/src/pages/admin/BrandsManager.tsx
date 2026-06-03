@@ -19,12 +19,7 @@ import {
 import { DataGrid, GridColDef, GridRenderCellParams, ptBR } from '@mui/x-data-grid';
 import { useTheme } from '@mui/material/styles';
 import { Edit, Trash2, Plus, Download } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
-
-interface Brand {
-  id: string;
-  name: string;
-}
+import { brandsApi, Brand } from '../../api/brands.api';
 
 // Lista de marcas padrão baseadas nos modelos definidos
 const standardBrands = [
@@ -53,20 +48,11 @@ export default function BrandsManager() {
   const fetchBrands = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('brands')
-        .select('*')
-        .order('name');
-      
-      if (error) throw error;
-      setBrands(data || []);
+      const data = await brandsApi.getAll();
+      setBrands(data);
     } catch (err) {
       console.error('Erro ao buscar marcas:', err);
-      setSnackbar({
-        open: true,
-        message: 'Erro ao carregar as marcas. Por favor, tente novamente.',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Erro ao carregar as marcas.', severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -96,141 +82,44 @@ export default function BrandsManager() {
   };
 
   const handleSaveBrand = async () => {
-    if (!brandName.trim()) {
-      setError('O nome da marca é obrigatório.');
-      return;
-    }
-
+    if (!brandName.trim()) { setError('O nome da marca é obrigatório.'); return; }
     try {
       if (editingBrand) {
-        // Atualizar marca existente
-        const { error } = await supabase
-          .from('brands')
-          .update({ name: brandName, updated_at: new Date() })
-          .eq('id', editingBrand.id);
-        
-        if (error) throw error;
-        
-        setSnackbar({
-          open: true,
-          message: 'Marca atualizada com sucesso!',
-          severity: 'success',
-        });
+        await brandsApi.update(editingBrand.id, { name: brandName });
+        setSnackbar({ open: true, message: 'Marca atualizada com sucesso!', severity: 'success' });
       } else {
-        // Criar nova marca
-        const { error } = await supabase
-          .from('brands')
-          .insert([{ name: brandName }]);
-        
-        if (error) {
-          if (error.code === '23505') {
-            setError('Esta marca já existe no sistema.');
-            return;
-          }
-          throw error;
-        }
-        
-        setSnackbar({
-          open: true,
-          message: 'Marca adicionada com sucesso!',
-          severity: 'success',
-        });
+        await brandsApi.create(brandName);
+        setSnackbar({ open: true, message: 'Marca adicionada com sucesso!', severity: 'success' });
       }
-      
       handleCloseDialog();
       fetchBrands();
-    } catch (err) {
-      console.error('Erro ao salvar marca:', err);
+    } catch (err: any) {
+      const status = err.response?.status;
+      if (status === 409) { setError('Esta marca já existe no sistema.'); return; }
       setError('Ocorreu um erro ao salvar. Por favor, tente novamente.');
     }
   };
 
   const handleDeleteBrand = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir esta marca? Isso também excluirá todos os modelos associados.')) {
-      return;
-    }
-
+    if (!window.confirm('Tem certeza que deseja excluir esta marca? Isso também excluirá todos os modelos associados.')) return;
     try {
-      const { error } = await supabase
-        .from('brands')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-      
-      setSnackbar({
-        open: true,
-        message: 'Marca excluída com sucesso!',
-        severity: 'success',
-      });
-      
+      await brandsApi.remove(id);
+      setSnackbar({ open: true, message: 'Marca excluída com sucesso!', severity: 'success' });
       fetchBrands();
     } catch (err) {
-      console.error('Erro ao excluir marca:', err);
-      setSnackbar({
-        open: true,
-        message: 'Erro ao excluir a marca. Verifique se não há dependências.',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Erro ao excluir a marca. Verifique se não há dependências.', severity: 'error' });
     }
   };
 
-  // Função para importar marcas padrões
   const handleImportStandardBrands = async () => {
-    if (!window.confirm('Esta ação irá importar as marcas padrões. Deseja continuar?')) {
-      return;
-    }
-
+    if (!window.confirm('Esta ação irá importar as marcas padrões. Deseja continuar?')) return;
     setImportLoading(true);
     try {
-      // Verificar quais marcas já existem no banco
-      const { data: existingBrands, error: fetchError } = await supabase
-        .from('brands')
-        .select('name');
-      
-      if (fetchError) throw fetchError;
-      
-      // Criar conjunto de nomes para facilitar a verificação
-      const existingBrandNames = new Set((existingBrands || []).map(b => b.name));
-      
-      // Filtrar apenas marcas que não existem
-      const newBrands = standardBrands
-        .filter(name => !existingBrandNames.has(name))
-        .map(name => ({ name }));
-      
-      if (newBrands.length === 0) {
-        setSnackbar({
-          open: true,
-          message: 'Todas as marcas padrões já estão cadastradas.',
-          severity: 'info',
-        });
-        setImportLoading(false);
-        return;
-      }
-      
-      // Inserir novas marcas
-      const { error: insertError, data: insertedData } = await supabase
-        .from('brands')
-        .insert(newBrands)
-        .select();
-      
-      if (insertError) throw insertError;
-      
-      setSnackbar({
-        open: true,
-        message: `Importação concluída! ${insertedData?.length || 0} marcas adicionadas.`,
-        severity: 'success',
-      });
-      
-      // Recarregar marcas
+      const result = await brandsApi.bulkImport(standardBrands.map(name => ({ name })));
+      setSnackbar({ open: true, message: `Importação concluída! ${result.created} marcas adicionadas.`, severity: 'success' });
       fetchBrands();
     } catch (err) {
-      console.error('Erro ao importar marcas padrões:', err);
-      setSnackbar({
-        open: true,
-        message: 'Erro ao importar marcas padrões. Por favor, tente novamente.',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Erro ao importar marcas padrões.', severity: 'error' });
     } finally {
       setImportLoading(false);
     }

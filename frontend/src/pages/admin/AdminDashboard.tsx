@@ -1,8 +1,9 @@
-import React from 'react';
-import { Box, Card, CardContent, Grid, Typography, Stack } from '@mui/material';
+import React, { useEffect, useState } from 'react';
+import { Box, Card, CardContent, Grid, Typography, Stack, CircularProgress } from '@mui/material';
 import { Users, Car, Tag as TagIcon, ListFilter, ShieldAlert } from 'lucide-react';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../../contexts/AuthContext';
+import { adminApi, AdminStats } from '../../api/admin.api';
 
 interface StatCardProps {
   icon: React.ReactNode;
@@ -45,72 +46,47 @@ const StatCard: React.FC<StatCardProps> = ({ icon, title, value, color }) => {
 export default function AdminDashboard() {
   const theme = useTheme();
   const { userProfile } = useAuth();
-  
-  // Em um cenário real, esses dados viriam do banco
-  const stats = {
-    usuariosTotal: 32,
-    veiculosTotal: 48,
-    marcasTotal: 16,
-    modelosTotal: 124,
-    adminsTotal: 2
-  };
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    adminApi.getStats()
+      .then(setStats)
+      .catch(console.error)
+      .finally(() => setLoadingStats(false));
+  }, []);
 
   return (
     <Box>
       <Typography variant="h4" component="h1" gutterBottom>
         Painel Administrativo
       </Typography>
-      
+
       <Typography variant="body1" color="text.secondary" paragraph>
         Bem-vindo(a), {userProfile?.name || 'Administrador(a)'}. Esse é o painel de controle do sistema.
       </Typography>
-      
+
+      {loadingStats ? (
+        <Box display="flex" justifyContent="center" p={4}><CircularProgress /></Box>
+      ) : (
       <Grid container spacing={3} sx={{ mt: 2 }}>
         <Grid item xs={12} sm={6} md={4}>
-          <StatCard
-            icon={<Users size={32} color={theme.palette.primary.main} />}
-            title="Usuários"
-            value={stats.usuariosTotal}
-            color={theme.palette.primary.main}
-          />
+          <StatCard icon={<Users size={32} color={theme.palette.primary.main} />} title="Usuários" value={stats?.users ?? 0} color={theme.palette.primary.main} />
         </Grid>
-        
         <Grid item xs={12} sm={6} md={4}>
-          <StatCard
-            icon={<Car size={32} color={theme.palette.success.main} />}
-            title="Veículos"
-            value={stats.veiculosTotal}
-            color={theme.palette.success.main}
-          />
+          <StatCard icon={<Car size={32} color={theme.palette.success.main} />} title="Veículos" value={stats?.vehicles ?? 0} color={theme.palette.success.main} />
         </Grid>
-        
         <Grid item xs={12} sm={6} md={4}>
-          <StatCard
-            icon={<ShieldAlert size={32} color={theme.palette.warning.main} />}
-            title="Administradores"
-            value={stats.adminsTotal}
-            color={theme.palette.warning.main}
-          />
+          <StatCard icon={<ShieldAlert size={32} color={theme.palette.warning.main} />} title="Administradores" value={stats?.admins ?? 0} color={theme.palette.warning.main} />
         </Grid>
-        
         <Grid item xs={12} sm={6} md={6}>
-          <StatCard
-            icon={<TagIcon size={32} color={theme.palette.info.main} />}
-            title="Marcas"
-            value={stats.marcasTotal}
-            color={theme.palette.info.main}
-          />
+          <StatCard icon={<TagIcon size={32} color={theme.palette.info.main} />} title="Marcas" value={stats?.brands ?? 0} color={theme.palette.info.main} />
         </Grid>
-        
         <Grid item xs={12} sm={6} md={6}>
-          <StatCard
-            icon={<ListFilter size={32} color={theme.palette.secondary.main} />}
-            title="Modelos"
-            value={stats.modelosTotal}
-            color={theme.palette.secondary.main}
-          />
+          <StatCard icon={<ListFilter size={32} color={theme.palette.secondary.main} />} title="Modelos" value={stats?.models ?? 0} color={theme.palette.secondary.main} />
         </Grid>
       </Grid>
+      )}
       
       <Card sx={{ mt: 4 }}>
         <CardContent>

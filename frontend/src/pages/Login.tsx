@@ -16,7 +16,7 @@ import {
   DialogContentText,
   DialogActions,
 } from '@mui/material';
-import { Provider } from '@supabase/supabase-js';
+type Provider = 'google' | 'github' | 'facebook';
 import { useAuth } from '../contexts/AuthContext';
 import { Github, Facebook, Mail, Eye, EyeOff } from 'lucide-react';
 

@@ -25,22 +25,15 @@ import {
 import { DataGrid, GridColDef, GridRenderCellParams, ptBR } from '@mui/x-data-grid';
 import { useTheme } from '@mui/material/styles';
 import { Edit, Trash2, Plus, Download, RefreshCw } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { modelsApi, Model } from '../../api/models.api';
+import { brandsApi, Brand } from '../../api/brands.api';
 
-interface Brand {
+interface ModelWithBrand {
   id: string;
+  brandId: string;
   name: string;
-}
-
-interface Model {
-  id: string;
-  brand_id: string;
-  name: string;
-  brand_name?: string;
-}
-
-interface ModelWithBrand extends Model {
-  brand_name: string; // Garantir que brand_name existe
+  brand: { id: string; name: string };
+  brand_name: string;
 }
 
 // Definição dos modelos corretos por marca
@@ -271,35 +264,10 @@ export default function ModelsManager() {
   const fetchModels = async () => {
     setLoading(true);
     try {
-      // Buscar modelos junto com o nome da marca para exibição
-      const { data, error } = await supabase
-        .from('models')
-        .select(`
-          id,
-          brand_id,
-          name,
-          brands (name)
-        `)
-        .order('name');
-      
-      if (error) throw error;
-      
-      // Transformar o resultado para um formato mais fácil de usar
-      const formattedModels = (data || []).map(model => ({
-        id: model.id,
-        brand_id: model.brand_id,
-        name: model.name,
-        brand_name: model.brands ? model.brands.name : 'Marca desconhecida',
-      }));
-      
-      setModels(formattedModels);
+      const data = await modelsApi.getAll();
+      setModels(data.map(m => ({ ...m, brandId: m.brandId, brand_name: m.brand?.name ?? 'Marca desconhecida' })));
     } catch (err) {
-      console.error('Erro ao buscar modelos:', err);
-      setSnackbar({
-        open: true,
-        message: 'Erro ao carregar os modelos. Por favor, tente novamente.',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Erro ao carregar os modelos.', severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -307,20 +275,10 @@ export default function ModelsManager() {
 
   const fetchBrands = async () => {
     try {
-      const { data, error } = await supabase
-        .from('brands')
-        .select('id, name')
-        .order('name');
-      
-      if (error) throw error;
-      setBrands(data || []);
+      const data = await brandsApi.getAll();
+      setBrands(data);
     } catch (err) {
-      console.error('Erro ao buscar marcas:', err);
-      setSnackbar({
-        open: true,
-        message: 'Erro ao carregar as marcas. Por favor, tente novamente.',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Erro ao carregar as marcas.', severity: 'error' });
     }
   };
 
@@ -329,11 +287,11 @@ export default function ModelsManager() {
     fetchModels();
   }, []);
 
-  const handleOpenDialog = (model?: Model) => {
+  const handleOpenDialog = (model?: ModelWithBrand) => {
     if (model) {
-      setEditingModel(model);
+      setEditingModel(model as any);
       setModelName(model.name);
-      setSelectedBrandId(model.brand_id);
+      setSelectedBrandId(model.brandId);
     } else {
       setEditingModel(null);
       setModelName('');
@@ -356,165 +314,52 @@ export default function ModelsManager() {
   };
 
   const handleSaveModel = async () => {
-    if (!modelName.trim()) {
-      setError('O nome do modelo é obrigatório.');
-      return;
-    }
-
-    if (!selectedBrandId) {
-      setError('A marca é obrigatória.');
-      return;
-    }
-
+    if (!modelName.trim()) { setError('O nome do modelo é obrigatório.'); return; }
+    if (!selectedBrandId) { setError('A marca é obrigatória.'); return; }
     try {
       if (editingModel) {
-        // Atualizar modelo existente
-        const { error } = await supabase
-          .from('models')
-          .update({ 
-            name: modelName, 
-            brand_id: selectedBrandId,
-            updated_at: new Date() 
-          })
-          .eq('id', editingModel.id);
-        
-        if (error) throw error;
-        
-        setSnackbar({
-          open: true,
-          message: 'Modelo atualizado com sucesso!',
-          severity: 'success',
-        });
+        await modelsApi.update(editingModel.id, { name: modelName, brandId: selectedBrandId });
+        setSnackbar({ open: true, message: 'Modelo atualizado com sucesso!', severity: 'success' });
       } else {
-        // Criar novo modelo
-        const { error } = await supabase
-          .from('models')
-          .insert([{ 
-            name: modelName, 
-            brand_id: selectedBrandId 
-          }]);
-        
-        if (error) {
-          if (error.code === '23505') {
-            setError('Este modelo já existe para esta marca.');
-            return;
-          }
-          throw error;
-        }
-        
-        setSnackbar({
-          open: true,
-          message: 'Modelo adicionado com sucesso!',
-          severity: 'success',
-        });
+        await modelsApi.create(selectedBrandId, modelName);
+        setSnackbar({ open: true, message: 'Modelo adicionado com sucesso!', severity: 'success' });
       }
-      
       handleCloseDialog();
       fetchModels();
-    } catch (err) {
-      console.error('Erro ao salvar modelo:', err);
+    } catch (err: any) {
+      if (err.response?.status === 409) { setError('Este modelo já existe para esta marca.'); return; }
       setError('Ocorreu um erro ao salvar. Por favor, tente novamente.');
     }
   };
 
   const handleDeleteModel = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja excluir este modelo?')) {
-      return;
-    }
-
+    if (!window.confirm('Tem certeza que deseja excluir este modelo?')) return;
     try {
-      const { error } = await supabase
-        .from('models')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-      
-      setSnackbar({
-        open: true,
-        message: 'Modelo excluído com sucesso!',
-        severity: 'success',
-      });
-      
+      await modelsApi.remove(id);
+      setSnackbar({ open: true, message: 'Modelo excluído com sucesso!', severity: 'success' });
       fetchModels();
     } catch (err) {
-      console.error('Erro ao excluir modelo:', err);
-      setSnackbar({
-        open: true,
-        message: 'Erro ao excluir o modelo. Verifique se não há dependências.',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Erro ao excluir o modelo.', severity: 'error' });
     }
   };
 
-  // Função para importar modelos padrões
   const handleImportStandardModels = async () => {
-    if (!window.confirm('Esta ação irá adicionar modelos padrões para as marcas existentes. Deseja continuar?')) {
-      return;
-    }
-
+    if (!window.confirm('Esta ação irá adicionar modelos padrões para as marcas existentes. Deseja continuar?')) return;
     setImportLoading(true);
     setError('');
-    let totalImported = 0;
-    let totalErrors = 0;
-
     try {
-      // Para cada marca no banco de dados
+      const allModels: Array<{ brandId: string; name: string }> = [];
       for (const brand of brands) {
-        // Verificar se temos modelos padrões para esta marca
-        const brandModels = standardModels[brand.name];
-        if (!brandModels) continue;
-
-        // Verificar quais modelos já existem para esta marca
-        const { data: existingModels, error: fetchError } = await supabase
-          .from('models')
-          .select('name')
-          .eq('brand_id', brand.id);
-
-        if (fetchError) throw fetchError;
-
-        // Criar um conjunto dos nomes de modelos existentes para verificação rápida
-        const existingModelNames = new Set((existingModels || []).map(m => m.name));
-
-        // Filtrar apenas modelos que não existem ainda
-        const newModels = brandModels
-          .filter(modelName => !existingModelNames.has(modelName))
-          .map(modelName => ({
-            brand_id: brand.id,
-            name: modelName
-          }));
-
-        if (newModels.length === 0) continue;
-
-        // Inserir modelos em lotes para melhor performance
-        const { error: insertError, data: insertedData } = await supabase
-          .from('models')
-          .insert(newModels)
-          .select();
-
-        if (insertError) {
-          console.error(`Erro ao importar modelos para ${brand.name}:`, insertError);
-          totalErrors++;
-        } else if (insertedData) {
-          totalImported += insertedData.length;
+        const brandModelNames = standardModels[brand.name];
+        if (brandModelNames) {
+          brandModelNames.forEach(name => allModels.push({ brandId: brand.id, name }));
         }
       }
-
-      setSnackbar({
-        open: true,
-        message: `Importação concluída! ${totalImported} modelos adicionados.${totalErrors > 0 ? ` ${totalErrors} marcas com erros.` : ''}`,
-        severity: totalErrors > 0 ? 'error' : 'success',
-      });
-
-      // Recarregar a lista de modelos
+      const result = await modelsApi.bulkImport(allModels);
+      setSnackbar({ open: true, message: `Importação concluída! ${result.created} modelos adicionados.`, severity: 'success' });
       fetchModels();
     } catch (err) {
-      console.error('Erro ao importar modelos padrões:', err);
-      setSnackbar({
-        open: true,
-        message: 'Erro ao importar modelos padrões. Por favor, tente novamente.',
-        severity: 'error',
-      });
+      setSnackbar({ open: true, message: 'Erro ao importar modelos padrões.', severity: 'error' });
     } finally {
       setImportLoading(false);
     }
@@ -531,7 +376,7 @@ export default function ModelsManager() {
         <Box>
           <IconButton
             color="primary"
-            onClick={() => handleOpenDialog(params.row as Model)}
+            onClick={() => handleOpenDialog(params.row as ModelWithBrand)}
             aria-label="editar"
           >
             <Edit size={18} />

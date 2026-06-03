@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { Eye, EyeOff, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { authApi } from '../api/auth.api';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -38,25 +38,8 @@ export default function ResetPassword() {
     }
   }, []);
 
-  // Se houver um hash, verificar a sessão
-  useEffect(() => {
-    const checkSession = async () => {
-      if (hashFromUrl) {
-        try {
-          // O Supabase vai processar o hash automaticamente
-          const { data, error } = await supabase.auth.getSession();
-          if (error) {
-            setError('Link de redefinição inválido ou expirado.');
-          }
-        } catch (err) {
-          console.error('Erro ao verificar sessão:', err);
-          setError('Erro ao verificar a sessão.');
-        }
-      }
-    };
-
-    checkSession();
-  }, [hashFromUrl]);
+  // O token vem via query param ?token=xxx (enviado pelo backend no email)
+  // hashFromUrl é mantido por compatibilidade mas não é mais necessário verificar sessão
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
