@@ -39,7 +39,9 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Nunca retentar se o próprio endpoint de refresh falhou — evita loop infinito
+    const isRefreshEndpoint = originalRequest.url?.includes('/auth/refresh');
+    if (error.response?.status === 401 && !originalRequest._retry && !isRefreshEndpoint) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });

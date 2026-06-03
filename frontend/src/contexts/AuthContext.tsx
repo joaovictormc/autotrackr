@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import axios from 'axios';
 import { authApi, UserProfile } from '../api/auth.api';
 import { setAccessToken } from '../api/client';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 export type { UserProfile };
 
@@ -48,15 +51,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const tryRefreshSession = async () => {
     if (!mounted.current) return;
     try {
-      const { api } = await import('../api/client');
-      const { data } = await api.post('/auth/refresh');
+      // Usa axios puro para não passar pelo interceptor da instância `api`,
+      // evitando o loop infinito quando não há cookie de sessão.
+      const { data } = await axios.post(
+        `${API_URL}/auth/refresh`,
+        {},
+        { withCredentials: true },
+      );
       if (data?.accessToken) {
         setAccessToken(data.accessToken);
         const profile = await authApi.getMe();
         if (mounted.current) setUser(profile);
       }
     } catch {
-      // sem sessão ativa — ok, usuário não logado
+      // 401 = sem sessão ativa — estado correto para usuário não logado
     } finally {
       if (mounted.current) {
         setLoading(false);
