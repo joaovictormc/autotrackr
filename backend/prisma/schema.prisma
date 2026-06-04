@@ -95,17 +95,64 @@ model Vehicle {
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
   maintenanceRecords MaintenanceRecord[]
+  fuelRecords        FuelRecord[]
+  revenueRecords     RevenueRecord[]
 
   @@map("vehicles")
 }
 
+enum FuelType {
+  GASOLINA
+  ETANOL
+  DIESEL
+  GNV
+  ELETRICO
+}
+
+model FuelRecord {
+  id           String   @id @default(uuid())
+  vehicleId    String   @map("vehicle_id")
+  vehicle      Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  date         DateTime @db.Date
+  fuelType     FuelType @map("fuel_type")
+  mileage      Int
+  quantity     Decimal  @db.Decimal(8, 2)
+  pricePerUnit Decimal  @db.Decimal(8, 3) @map("price_per_unit")
+  totalCost    Decimal  @db.Decimal(10, 2) @map("total_cost")
+  fullTank     Boolean  @default(true) @map("full_tank")
+  station      String?
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@map("fuel_records")
+}
+
+model RevenueRecord {
+  id        String   @id @default(uuid())
+  vehicleId String   @map("vehicle_id")
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  category  String
+  amount    Decimal  @db.Decimal(10, 2)
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@map("revenue_records")
+}
+
 model MaintenanceType {
-  id          String              @id @default(uuid())
-  name        String              @unique
-  description String?
-  createdAt   DateTime            @default(now()) @map("created_at")
-  updatedAt   DateTime            @updatedAt @map("updated_at")
-  records     MaintenanceRecord[]
+  id                    String              @id @default(uuid())
+  name                  String              @unique
+  description           String?
+  defaultIntervalKm     Int?                @map("default_interval_km")
+  defaultIntervalMonths Int?                @map("default_interval_months")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  records               MaintenanceRecord[]
 
   @@map("maintenance_types")
 }

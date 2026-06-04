@@ -46,7 +46,10 @@ export class AuthService {
     });
   }
 
-  async refresh(userId: string) {
+  async refresh(userId: string, oldToken?: string) {
+    if (oldToken) {
+      await this.prisma.refreshToken.deleteMany({ where: { userId, token: oldToken } });
+    }
     const user = await this.users.findById(userId);
     if (!user) throw new UnauthorizedException();
     return this.generateTokens(user.id, user.email, user.role);
@@ -102,18 +105,21 @@ export class AuthService {
 
   private async generateTokens(userId: string, email: string, role: string) {
     const payload = { sub: userId, email, role };
+
     const accessToken = this.jwt.sign(payload, {
       expiresIn: this.config.get('JWT_EXPIRES_IN', '15m'),
     });
 
-    const rawToken = crypto.randomBytes(40).toString('hex');
+    // jti (JWT ID) makes every refresh token unique even when signed in the same second
+    const jti = crypto.randomBytes(16).toString('hex');
+    const refreshToken = this.jwt.sign({ ...payload, jti }, { expiresIn: '7d' });
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     await this.prisma.refreshToken.create({
-      data: { token: rawToken, userId, expiresAt },
+      data: { token: refreshToken, userId, expiresAt },
     });
 
-    return { accessToken, refreshToken: rawToken };
+    return { accessToken, refreshToken };
   }
 
   private async sendResetEmail(email: string, token: string) {

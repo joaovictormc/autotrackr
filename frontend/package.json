@@ -17,11 +17,14 @@
     "@supabase/supabase-js": "^2.39.7",
     "autotrackr": "file:",
     "axios": "^1.8.4",
+    "i18next": "^26.3.1",
     "lucide-react": "^0.344.0",
     "notistack": "^3.0.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.22.1"
+    "react-i18next": "^17.0.8",
+    "react-router-dom": "^6.22.1",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

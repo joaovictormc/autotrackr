@@ -10,6 +10,8 @@ import {
   Alert,
   Typography,
   CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import { useSnackbar } from 'notistack';
 import { vehiclesApi, Vehicle } from '../api/vehicles.api';
@@ -29,6 +31,8 @@ interface EditForm {
 
 export default function EditVehicleDialog({ open, vehicle, onClose, onSuccess }: EditVehicleDialogProps) {
   const { enqueueSnackbar } = useSnackbar();
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState<EditForm>({ mileage: '', color: '', details: '' });
@@ -75,7 +79,7 @@ export default function EditVehicleDialog({ open, vehicle, onClose, onSuccess }:
   if (!vehicle) return null;
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
       <DialogTitle>
         Editar Veículo
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>

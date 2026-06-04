@@ -33,7 +33,13 @@ export interface FipeVehicleInfo {
   siglaCombustivel: string;
 }
 
+// Raw shapes returned by the parallelum FIPE API (Portuguese field names)
+interface RawEntry { codigo: string; nome: string; }
+interface RawModelResponse { modelos: RawEntry[]; }
+
 // Cache TTL: 24 horas para marcas/modelos, 6 horas para anos
+// v2 prefix busts any stale cache from before the field-name mapping was added
+const CACHE_V = 'v4';
 const TTL_LONG = 24 * 60 * 60 * 1000;
 const TTL_SHORT = 6 * 60 * 60 * 1000;
 
@@ -81,35 +87,38 @@ async function fetchWithRetry<T>(url: string, retries = 3): Promise<T> {
 }
 
 export const getBrands = async (): Promise<FipeBrand[]> => {
-  const cacheKey = 'fipe:brands';
+  const cacheKey = `fipe:${CACHE_V}:brands`;
   const cached = getCache<FipeBrand[]>(cacheKey);
   if (cached) return cached;
 
-  const data = await fetchWithRetry<FipeBrand[]>(`${BASE_URL}/carros/marcas`);
+  const raw = await fetchWithRetry<RawEntry[]>(`${BASE_URL}/carros/marcas`);
+  const data = raw.map(b => ({ code: String(b.codigo), name: b.nome }));
   setCache(cacheKey, data, TTL_LONG);
   return data;
 };
 
 export const getModels = async (brandCode: string): Promise<FipeModelResponse> => {
-  const cacheKey = `fipe:models:${brandCode}`;
+  const cacheKey = `fipe:${CACHE_V}:models:${brandCode}`;
   const cached = getCache<FipeModelResponse>(cacheKey);
   if (cached) return cached;
 
-  const data = await fetchWithRetry<FipeModelResponse>(
+  const raw = await fetchWithRetry<RawModelResponse>(
     `${BASE_URL}/carros/marcas/${brandCode}/modelos`
   );
+  const data: FipeModelResponse = { models: raw.modelos.map(m => ({ code: String(m.codigo), name: m.nome })) };
   setCache(cacheKey, data, TTL_LONG);
   return data;
 };
 
 export const getYears = async (brandCode: string, modelCode: string): Promise<FipeYear[]> => {
-  const cacheKey = `fipe:years:${brandCode}:${modelCode}`;
+  const cacheKey = `fipe:${CACHE_V}:years:${brandCode}:${modelCode}`;
   const cached = getCache<FipeYear[]>(cacheKey);
   if (cached) return cached;
 
-  const data = await fetchWithRetry<FipeYear[]>(
+  const raw = await fetchWithRetry<RawEntry[]>(
     `${BASE_URL}/carros/marcas/${brandCode}/modelos/${modelCode}/anos`
   );
+  const data = raw.map(y => ({ code: String(y.codigo), name: y.nome }));
   setCache(cacheKey, data, TTL_SHORT);
   return data;
 };
@@ -119,7 +128,7 @@ export const getVehicleInfo = async (
   modelCode: string,
   yearCode: string
 ): Promise<FipeVehicleInfo> => {
-  const cacheKey = `fipe:info:${brandCode}:${modelCode}:${yearCode}`;
+  const cacheKey = `fipe:${CACHE_V}:info:${brandCode}:${modelCode}:${yearCode}`;
   const cached = getCache<FipeVehicleInfo>(cacheKey);
   if (cached) return cached;
 

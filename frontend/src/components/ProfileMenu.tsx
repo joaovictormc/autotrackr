@@ -21,6 +21,7 @@ import {
   Layout,
   ShieldAlert,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ProfileMenuProps {
@@ -31,6 +32,7 @@ interface ProfileMenuProps {
 
 export default function ProfileMenu({ anchorEl, open, onClose }: ProfileMenuProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, userProfile, isAdmin, signOut } = useAuth();
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -91,7 +93,14 @@ export default function ProfileMenu({ anchorEl, open, onClose }: ProfileMenuProp
           <ListItemIcon>
             <Layout size={18} />
           </ListItemIcon>
-          Dashboard
+          {t('profileMenu.dashboard')}
+        </MenuItem>
+
+        <MenuItem onClick={() => handleNavigation('/profile')} sx={{ my: 0.5 }}>
+          <ListItemIcon>
+            <User size={18} />
+          </ListItemIcon>
+          {t('profileMenu.myProfile')}
         </MenuItem>
 
         {isAdmin && (
@@ -101,7 +110,7 @@ export default function ProfileMenu({ anchorEl, open, onClose }: ProfileMenuProp
               <ListItemIcon>
                 <ShieldAlert size={18} color="#f97316" />
               </ListItemIcon>
-              Área Administrativa
+              {t('profileMenu.adminArea')}
             </MenuItem>
           </>
         )}
@@ -116,7 +125,7 @@ export default function ProfileMenu({ anchorEl, open, onClose }: ProfileMenuProp
             onClick={openLogoutConfirmation}
             sx={{ mt: 0.5, borderRadius: 1 }}
           >
-            Sair da conta
+            {t('profileMenu.logout')}
           </Button>
         </Box>
       </Menu>
@@ -125,10 +134,10 @@ export default function ProfileMenu({ anchorEl, open, onClose }: ProfileMenuProp
         open={confirmLogoutOpen}
         onClose={() => !loggingOut && setConfirmLogoutOpen(false)}
       >
-        <DialogTitle>Sair da conta</DialogTitle>
+        <DialogTitle>{t('profileMenu.confirmTitle')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Tem certeza que deseja sair da sua conta? Você precisará fazer login novamente para acessar seus dados.
+            {t('profileMenu.confirmText')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
@@ -137,7 +146,7 @@ export default function ProfileMenu({ anchorEl, open, onClose }: ProfileMenuProp
             color="primary"
             disabled={loggingOut}
           >
-            Cancelar
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleSignOut}
@@ -146,7 +155,7 @@ export default function ProfileMenu({ anchorEl, open, onClose }: ProfileMenuProp
             startIcon={<LogOut size={16} />}
             disabled={loggingOut}
           >
-            {loggingOut ? 'Saindo...' : 'Sair'}
+            {loggingOut ? t('profileMenu.exiting') : t('profileMenu.exit')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -9,6 +9,8 @@ import { BrandsModule } from './brands/brands.module';
 import { ModelsModule } from './models/models.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
+import { FuelModule } from './fuel/fuel.module';
+import { RevenueModule } from './revenue/revenue.module';
 import { AdminModule } from './admin/admin.module';
 
 @Module({
@@ -22,6 +24,8 @@ import { AdminModule } from './admin/admin.module';
     ModelsModule,
     VehiclesModule,
     MaintenanceModule,
+    FuelModule,
+    RevenueModule,
     AdminModule,
   ],
 })

@@ -67,8 +67,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(AuthGuard('jwt-refresh'))
   @ApiOperation({ summary: 'Renovar access token usando refresh cookie' })
-  async refresh(@CurrentUser() user: { sub: string }, @Res({ passthrough: true }) res: Response) {
-    const result = await this.auth.refresh(user.sub);
+  async refresh(
+    @CurrentUser() user: { sub: string },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const oldToken = req?.cookies?.refreshToken;
+    const result = await this.auth.refresh(user.sub, oldToken);
     this.auth.setRefreshCookie(res, result.refreshToken);
     return { accessToken: result.accessToken };
   }

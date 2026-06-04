@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class VehiclesService {
@@ -31,38 +32,45 @@ export class VehiclesService {
   }
 
   async create(userId: string, dto: CreateVehicleDto) {
-    return this.prisma.$transaction(async (tx) => {
-      const brand = await tx.brand.upsert({
-        where: { name: dto.brandName },
-        create: { name: dto.brandName, apiCode: dto.brandApiCode },
-        update: {},
-      });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const brand = await tx.brand.upsert({
+          where: { name: dto.brandName },
+          create: { name: dto.brandName, apiCode: dto.brandApiCode },
+          update: {},
+        });
 
-      const model = await tx.model.upsert({
-        where: { brandId_name: { brandId: brand.id, name: dto.modelName } },
-        create: { name: dto.modelName, brandId: brand.id, apiCode: dto.modelApiCode },
-        update: {},
-      });
+        const model = await tx.model.upsert({
+          where: { brandId_name: { brandId: brand.id, name: dto.modelName } },
+          create: { name: dto.modelName, brandId: brand.id, apiCode: dto.modelApiCode },
+          update: {},
+        });
 
-      return tx.vehicle.create({
-        data: {
-          userId,
-          brandId: brand.id,
-          modelId: model.id,
-          plate: dto.plate.toUpperCase(),
-          year: dto.year,
-          mileage: dto.mileage ?? 0,
-          color: dto.color,
-          vin: dto.vin,
-          details: dto.details,
-          apiYearCode: dto.apiYearCode,
-        },
-        include: {
-          brand: { select: { id: true, name: true } },
-          model: { select: { id: true, name: true } },
-        },
+        return await tx.vehicle.create({
+          data: {
+            userId,
+            brandId: brand.id,
+            modelId: model.id,
+            plate: dto.plate.toUpperCase(),
+            year: dto.year,
+            mileage: dto.mileage ?? 0,
+            color: dto.color,
+            vin: dto.vin,
+            details: dto.details,
+            apiYearCode: dto.apiYearCode,
+          },
+          include: {
+            brand: { select: { id: true, name: true } },
+            model: { select: { id: true, name: true } },
+          },
+        });
       });
-    });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('Já existe um veículo cadastrado com essa placa.');
+      }
+      throw err;
+    }
   }
 
   async update(id: string, userId: string, dto: UpdateVehicleDto) {

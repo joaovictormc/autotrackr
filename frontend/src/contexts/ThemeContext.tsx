@@ -2,14 +2,37 @@ import React, { createContext, useContext, useMemo, useState } from 'react';
 import { ThemeProvider as MuiThemeProvider, createTheme } from '@mui/material';
 import { PaletteMode } from '@mui/material';
 
+export interface AccentOption {
+  key: string;
+  label: string;
+  main: string;
+  dark: string;
+  light: string;
+}
+
+export const ACCENT_OPTIONS: AccentOption[] = [
+  { key: 'orange', label: 'Laranja', main: '#f97316', dark: '#ea580c', light: '#fb923c' },
+  { key: 'blue', label: 'Azul', main: '#3b82f6', dark: '#2563eb', light: '#60a5fa' },
+  { key: 'green', label: 'Verde', main: '#22c55e', dark: '#16a34a', light: '#4ade80' },
+  { key: 'violet', label: 'Violeta', main: '#8b5cf6', dark: '#7c3aed', light: '#a78bfa' },
+  { key: 'red', label: 'Vermelho', main: '#ef4444', dark: '#dc2626', light: '#f87171' },
+  { key: 'teal', label: 'Turquesa', main: '#14b8a6', dark: '#0d9488', light: '#2dd4bf' },
+];
+
 interface ThemeContextType {
-  toggleColorMode: () => void;
   mode: PaletteMode;
+  toggleColorMode: () => void;
+  accent: string;
+  setAccent: (key: string) => void;
+  accentOptions: AccentOption[];
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  toggleColorMode: () => {},
   mode: 'dark',
+  toggleColorMode: () => {},
+  accent: 'orange',
+  setAccent: () => {},
+  accentOptions: ACCENT_OPTIONS,
 });
 
 export const useThemeContext = () => useContext(ThemeContext);
@@ -22,10 +45,20 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   const [mode, setMode] = useState<PaletteMode>(
     () => (localStorage.getItem('themeMode') as PaletteMode) ?? 'dark'
   );
+  const [accent, setAccentState] = useState<string>(
+    () => localStorage.getItem('themeAccent') ?? 'orange'
+  );
+
+  const accentDef = useMemo(
+    () => ACCENT_OPTIONS.find((a) => a.key === accent) ?? ACCENT_OPTIONS[0],
+    [accent]
+  );
 
   const colorMode = useMemo(
     () => ({
       mode,
+      accent,
+      accentOptions: ACCENT_OPTIONS,
       toggleColorMode: () => {
         setMode((prev) => {
           const next = prev === 'light' ? 'dark' : 'light';
@@ -33,8 +66,12 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
           return next;
         });
       },
+      setAccent: (key: string) => {
+        localStorage.setItem('themeAccent', key);
+        setAccentState(key);
+      },
     }),
-    [mode]
+    [mode, accent]
   );
 
   const theme = useMemo(
@@ -43,9 +80,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
         palette: {
           mode,
           primary: {
-            main: '#f97316',
-            dark: '#ea580c',
-            light: '#fb923c',
+            main: accentDef.main,
+            dark: accentDef.dark,
+            light: accentDef.light,
             contrastText: '#ffffff',
           },
           secondary: {
@@ -126,7 +163,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
           },
         },
       }),
-    [mode]
+    [mode, accentDef]
   );
 
   return (

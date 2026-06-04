@@ -2,10 +2,33 @@ import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, HttpCode, H
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 
 import { MaintenanceService } from './maintenance.service';
+import { CreateMaintenanceDto, UpdateMaintenanceDto, CreateMaintenanceTypeDto } from './dto/maintenance.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtPayload } from '../auth/strategies/jwt.strategy';
 
+// ── Tipos de manutenção ────────────────────────────────────────────────────
+@ApiTags('Maintenance Types')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('maintenance/types')
+export class MaintenanceTypesController {
+  constructor(private service: MaintenanceService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Listar tipos de manutenção' })
+  findAll() {
+    return this.service.findAllTypes();
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Criar novo tipo de manutenção' })
+  create(@Body() dto: CreateMaintenanceTypeDto) {
+    return this.service.createType(dto.name, dto.defaultIntervalKm, dto.defaultIntervalMonths);
+  }
+}
+
+// ── Registros de manutenção ────────────────────────────────────────────────
 @ApiTags('Maintenance')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -24,9 +47,9 @@ export class MaintenanceController {
   create(
     @CurrentUser() user: JwtPayload,
     @Param('vehicleId') vehicleId: string,
-    @Body() body: Record<string, unknown>,
+    @Body() dto: CreateMaintenanceDto,
   ) {
-    return this.service.create(vehicleId, user.sub, body);
+    return this.service.create(vehicleId, user.sub, dto);
   }
 
   @Put(':id')
@@ -35,9 +58,9 @@ export class MaintenanceController {
     @CurrentUser() user: JwtPayload,
     @Param('vehicleId') vehicleId: string,
     @Param('id') id: string,
-    @Body() body: Record<string, unknown>,
+    @Body() dto: UpdateMaintenanceDto,
   ) {
-    return this.service.update(vehicleId, id, user.sub, body);
+    return this.service.update(vehicleId, id, user.sub, dto);
   }
 
   @Delete(':id')
