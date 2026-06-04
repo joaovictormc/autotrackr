@@ -34,3 +34,6 @@ backend/prisma/migrations/*.sql.bak
 # Build outputs
 frontend/dist/
 backend/dist/
+
+# Brainstorming visual companion
+.superpowers/

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   TextField,
@@ -13,13 +13,12 @@ import {
   CircularProgress,
 } from '@mui/material';
 import { Eye, EyeOff, CheckCircle } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth.api';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
-  const { updatePassword } = useAuth();
-  
+  const token = new URLSearchParams(window.location.search).get('token');
+
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -27,32 +26,13 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hashFromUrl, setHashFromUrl] = useState<string | null>(null);
 
-  // Verificar se há um hash na URL (enviado por email de redefinição)
-  useEffect(() => {
-    const hash = window.location.hash.substring(1);
-    if (hash) {
-      // Formato esperado: #access_token=XXX&refresh_token=YYY&...
-      setHashFromUrl(hash);
-    }
-  }, []);
-
-  // O token vem via query param ?token=xxx (enviado pelo backend no email)
-  // hashFromUrl é mantido por compatibilidade mas não é mais necessário verificar sessão
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
-  const toggleConfirmPasswordVisibility = () => {
-    setShowConfirmPassword(!showConfirmPassword);
-  };
+  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  const toggleConfirmPasswordVisibility = () => setShowConfirmPassword(!showConfirmPassword);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validações
+
     if (!password || !confirmPassword) {
       setError('Por favor, preencha todos os campos.');
       return;
@@ -67,20 +47,16 @@ export default function ResetPassword() {
       setError('A senha deve ter pelo menos 6 caracteres.');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      await updatePassword(password);
+      await authApi.resetPassword(token!, password);
       setSuccess(true);
-      // Redirecionar após 3 segundos
-      setTimeout(() => {
-        navigate('/login');
-      }, 3000);
+      setTimeout(() => navigate('/login'), 3000);
     } catch (err: any) {
-      console.error('Erro ao atualizar senha:', err);
-      setError(err.message || 'Erro ao redefinir senha. Tente novamente.');
+      setError(err.response?.data?.message || err.message || 'Erro ao redefinir senha. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -92,21 +68,21 @@ export default function ResetPassword() {
         <Typography component="h1" variant="h5" sx={{ mb: 3 }}>
           Redefinir Senha
         </Typography>
-        
-        {!hashFromUrl && (
+
+        {!token && (
           <Alert severity="info" sx={{ width: '100%', mb: 3 }}>
             Esta página só deve ser acessada através do link enviado ao seu email.
             Se você precisa redefinir sua senha, volte para a página de login e
             clique em "Esqueceu sua senha?".
           </Alert>
         )}
-        
+
         {error && (
           <Alert severity="error" sx={{ width: '100%', mb: 3 }}>
             {error}
           </Alert>
         )}
-        
+
         {success ? (
           <Paper sx={{ p: 3, width: '100%', textAlign: 'center' }}>
             <CheckCircle size={48} color="green" style={{ margin: '0 auto 16px' }} />
@@ -116,9 +92,9 @@ export default function ResetPassword() {
             <Typography variant="body2" color="text.secondary" paragraph>
               Você será redirecionado para a página de login em instantes...
             </Typography>
-            <Button 
-              variant="outlined" 
-              fullWidth 
+            <Button
+              variant="outlined"
+              fullWidth
               onClick={() => navigate('/login')}
               sx={{ mt: 2 }}
             >
@@ -137,22 +113,18 @@ export default function ResetPassword() {
               id="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              disabled={loading || !hashFromUrl}
+              disabled={loading || !token}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton
-                      aria-label="toggle password visibility"
-                      onClick={togglePasswordVisibility}
-                      edge="end"
-                    >
+                    <IconButton onClick={togglePasswordVisibility} edge="end">
                       {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </IconButton>
                   </InputAdornment>
                 )
               }}
             />
-            
+
             <TextField
               margin="normal"
               required
@@ -163,28 +135,24 @@ export default function ResetPassword() {
               id="confirmPassword"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={loading || !hashFromUrl}
+              disabled={loading || !token}
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton
-                      aria-label="toggle confirm password visibility"
-                      onClick={toggleConfirmPasswordVisibility}
-                      edge="end"
-                    >
+                    <IconButton onClick={toggleConfirmPasswordVisibility} edge="end">
                       {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                     </IconButton>
                   </InputAdornment>
                 )
               }}
             />
-            
+
             <Button
               type="submit"
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
-              disabled={loading || !hashFromUrl}
+              disabled={loading || !token}
             >
               {loading ? (
                 <>
@@ -195,7 +163,7 @@ export default function ResetPassword() {
                 'Redefinir Senha'
               )}
             </Button>
-            
+
             <Button
               fullWidth
               variant="text"
@@ -209,4 +177,4 @@ export default function ResetPassword() {
       </Box>
     </Container>
   );
-} 
+}

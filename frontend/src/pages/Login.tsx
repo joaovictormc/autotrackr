@@ -16,15 +16,22 @@ import {
   DialogContentText,
   DialogActions,
 } from '@mui/material';
-type Provider = 'google' | 'github' | 'facebook';
 import { useAuth } from '../contexts/AuthContext';
-import { Github, Facebook, Mail, Eye, EyeOff } from 'lucide-react';
+import { Facebook, Eye, EyeOff } from 'lucide-react';
+
+const GoogleIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24">
+    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+  </svg>
+);
 
 const Login = () => {
-  console.log('Componente Login renderizado');
-  const { signIn, signInWithProvider, resetPassword } = useAuth();
+  const { signIn, resetPassword } = useAuth();
   const navigate = useNavigate();
-  
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState('');
@@ -38,42 +45,31 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Formulário de login submetido para:', email);
-    
+
     if (!email || !password) {
-      console.log('Validação falhou: email ou senha em branco');
       setError('Por favor, preencha todos os campos.');
       return;
     }
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      console.log('Iniciando processo de autenticação');
       await signIn(email, password);
-      console.log('Login bem-sucedido, redirecionando para o dashboard');
       navigate('/dashboard');
     } catch (err: any) {
-      console.error('Erro no processo de login:', err);
       if (err.message) {
-        console.log('Mensagem de erro:', err.message);
         setError(err.message);
       } else {
         setError('Falha ao fazer login. Verifique suas credenciais.');
       }
     } finally {
-      console.log('Finalizando processo de login');
       setLoading(false);
     }
   };
 
-  const handleSocialLogin = async (provider: Provider) => {
-    try {
-      await signInWithProvider(provider);
-    } catch (err) {
-      setError('Falha ao entrar com provedor social');
-    }
+  const handleSocialLogin = () => {
+    setError('Login social estará disponível em breve.');
   };
 
   const togglePasswordVisibility = () => {
@@ -88,7 +84,7 @@ const Login = () => {
 
     setResetLoading(true);
     setResetError(null);
-    
+
     try {
       await resetPassword(resetEmail);
       setResetSuccess(true);
@@ -115,25 +111,9 @@ const Login = () => {
         <Button
           fullWidth
           variant="outlined"
-          startIcon={<Github size={20} />}
-          onClick={() => handleSocialLogin('github')}
-          sx={{ 
-            color: 'black',
-            borderColor: 'black',
-            '&:hover': {
-              borderColor: 'black',
-              backgroundColor: 'rgba(0, 0, 0, 0.04)'
-            }
-          }}
-        >
-          Continuar com GitHub
-        </Button>
-        <Button
-          fullWidth
-          variant="outlined"
           startIcon={<Facebook size={20} />}
-          onClick={() => handleSocialLogin('facebook')}
-          sx={{ 
+          onClick={handleSocialLogin}
+          sx={{
             color: '#1877F2',
             borderColor: '#1877F2',
             '&:hover': {
@@ -147,9 +127,9 @@ const Login = () => {
         <Button
           fullWidth
           variant="outlined"
-          startIcon={<Mail size={20} />}
-          onClick={() => handleSocialLogin('google')}
-          sx={{ 
+          startIcon={<GoogleIcon />}
+          onClick={handleSocialLogin}
+          sx={{
             color: '#DB4437',
             borderColor: '#DB4437',
             '&:hover': {
@@ -161,7 +141,7 @@ const Login = () => {
           Continuar com Google
         </Button>
       </Stack>
-      
+
       <Divider sx={{ width: '100%', mb: 3 }}>ou</Divider>
 
       <Box component="form" onSubmit={handleSubmit} sx={{ width: '100%' }}>
@@ -220,8 +200,8 @@ const Login = () => {
           <Link component={RouterLink} to="/register" variant="body2">
             {"Não tem uma conta? Cadastre-se"}
           </Link>
-          <Link 
-            component="button" 
+          <Link
+            component="button"
             type="button"
             variant="body2"
             onClick={() => setResetDialogOpen(true)}
@@ -231,12 +211,11 @@ const Login = () => {
         </Box>
       </Box>
 
-      {/* Diálogo de Recuperação de Senha */}
       <Dialog open={resetDialogOpen} onClose={handleResetDialogClose}>
         <DialogTitle>Recuperar Senha</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {resetSuccess 
+            {resetSuccess
               ? "Email de recuperação enviado com sucesso! Verifique sua caixa de entrada para as instruções de redefinição de senha."
               : "Para redefinir sua senha, informe o email associado à sua conta. Enviaremos um link para você criar uma nova senha."}
           </DialogContentText>
@@ -263,9 +242,9 @@ const Login = () => {
             {resetSuccess ? "Fechar" : "Cancelar"}
           </Button>
           {!resetSuccess && (
-            <Button 
-              onClick={handleResetPassword} 
-              variant="contained" 
+            <Button
+              onClick={handleResetPassword}
+              variant="contained"
               disabled={resetLoading}
             >
               {resetLoading ? "Enviando..." : "Enviar"}

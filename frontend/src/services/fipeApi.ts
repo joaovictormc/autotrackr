@@ -33,72 +33,101 @@ export interface FipeVehicleInfo {
   siglaCombustivel: string;
 }
 
-/**
- * Busca todas as marcas de veículos
- */
+// Cache TTL: 24 horas para marcas/modelos, 6 horas para anos
+const TTL_LONG = 24 * 60 * 60 * 1000;
+const TTL_SHORT = 6 * 60 * 60 * 1000;
+
+function getCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const { data, expiresAt } = JSON.parse(raw);
+    if (Date.now() > expiresAt) {
+      localStorage.removeItem(key);
+      return null;
+    }
+    return data as T;
+  } catch {
+    return null;
+  }
+}
+
+function setCache<T>(key: string, data: T, ttl: number): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({ data, expiresAt: Date.now() + ttl }));
+  } catch {
+    // localStorage cheio — ignora silenciosamente
+  }
+}
+
+// Retry com backoff exponencial para lidar com 429
+async function fetchWithRetry<T>(url: string, retries = 3): Promise<T> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const response = await axios.get<T>(url);
+      return response.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const isLast = attempt === retries - 1;
+
+      if (isLast || (status !== 429 && status !== 503)) throw err;
+
+      // Espera exponencial: 1s, 2s, 4s
+      const delay = 1000 * Math.pow(2, attempt);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error('Todas as tentativas falharam');
+}
+
 export const getBrands = async (): Promise<FipeBrand[]> => {
-  try {
-    const response = await axios.get<FipeBrand[]>(`${BASE_URL}/carros/marcas`);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao buscar marcas:', error);
-    throw error;
-  }
+  const cacheKey = 'fipe:brands';
+  const cached = getCache<FipeBrand[]>(cacheKey);
+  if (cached) return cached;
+
+  const data = await fetchWithRetry<FipeBrand[]>(`${BASE_URL}/carros/marcas`);
+  setCache(cacheKey, data, TTL_LONG);
+  return data;
 };
 
-/**
- * Busca todos os modelos de uma marca específica
- * @param brandCode - Código da marca
- */
 export const getModels = async (brandCode: string): Promise<FipeModelResponse> => {
-  try {
-    const response = await axios.get<FipeModelResponse>(`${BASE_URL}/carros/marcas/${brandCode}/modelos`);
-    return response.data;
-  } catch (error) {
-    console.error(`Erro ao buscar modelos para a marca ${brandCode}:`, error);
-    throw error;
-  }
+  const cacheKey = `fipe:models:${brandCode}`;
+  const cached = getCache<FipeModelResponse>(cacheKey);
+  if (cached) return cached;
+
+  const data = await fetchWithRetry<FipeModelResponse>(
+    `${BASE_URL}/carros/marcas/${brandCode}/modelos`
+  );
+  setCache(cacheKey, data, TTL_LONG);
+  return data;
 };
 
-/**
- * Busca todos os anos disponíveis para um modelo específico
- * @param brandCode - Código da marca
- * @param modelCode - Código do modelo
- */
 export const getYears = async (brandCode: string, modelCode: string): Promise<FipeYear[]> => {
-  try {
-    const response = await axios.get<FipeYear[]>(
-      `${BASE_URL}/carros/marcas/${brandCode}/modelos/${modelCode}/anos`
-    );
-    return response.data;
-  } catch (error) {
-    console.error(`Erro ao buscar anos para o modelo ${modelCode}:`, error);
-    throw error;
-  }
+  const cacheKey = `fipe:years:${brandCode}:${modelCode}`;
+  const cached = getCache<FipeYear[]>(cacheKey);
+  if (cached) return cached;
+
+  const data = await fetchWithRetry<FipeYear[]>(
+    `${BASE_URL}/carros/marcas/${brandCode}/modelos/${modelCode}/anos`
+  );
+  setCache(cacheKey, data, TTL_SHORT);
+  return data;
 };
 
-/**
- * Busca informações detalhadas de um veículo específico
- * @param brandCode - Código da marca
- * @param modelCode - Código do modelo
- * @param yearCode - Código do ano
- */
-export const getVehicleInfo = async (brandCode: string, modelCode: string, yearCode: string): Promise<FipeVehicleInfo> => {
-  try {
-    const response = await axios.get<FipeVehicleInfo>(
-      `${BASE_URL}/carros/marcas/${brandCode}/modelos/${modelCode}/anos/${yearCode}`
-    );
-    return response.data;
-  } catch (error) {
-    console.error(`Erro ao buscar informações do veículo:`, error);
-    throw error;
-  }
+export const getVehicleInfo = async (
+  brandCode: string,
+  modelCode: string,
+  yearCode: string
+): Promise<FipeVehicleInfo> => {
+  const cacheKey = `fipe:info:${brandCode}:${modelCode}:${yearCode}`;
+  const cached = getCache<FipeVehicleInfo>(cacheKey);
+  if (cached) return cached;
+
+  const data = await fetchWithRetry<FipeVehicleInfo>(
+    `${BASE_URL}/carros/marcas/${brandCode}/modelos/${modelCode}/anos/${yearCode}`
+  );
+  setCache(cacheKey, data, TTL_LONG);
+  return data;
 };
 
-// Exporta também o objeto completo para manter compatibilidade
-export default {
-  getBrands,
-  getModels,
-  getYears,
-  getVehicleInfo
-}; 
+export default { getBrands, getModels, getYears, getVehicleInfo };

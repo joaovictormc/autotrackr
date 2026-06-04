@@ -15,7 +15,6 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
-import AddVehicle from './pages/AddVehicle';
 import AuthLayout from './layouts/AuthLayout';
 import ProtectedLayout from './layouts/ProtectedLayout';
 import AdminLayout from './layouts/AdminLayout';
@@ -157,7 +156,7 @@ const router = createBrowserRouter(
       </Route>
       <Route element={<ProtectedLayout />}>
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/vehicles/new" element={<AddVehicle />} />
+        <Route path="/vehicles/new" element={<Navigate to="/dashboard" replace />} />
       </Route>
       <Route element={<AdminLayout />}>
         <Route path="/admin" element={<AdminDashboard />} />
