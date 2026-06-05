@@ -46,6 +46,18 @@ export class CreateFuelRecordDto {
   @IsString()
   station?: string;
 
+  @ApiPropertyOptional({ example: -23.5505 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  latitude?: number;
+
+  @ApiPropertyOptional({ example: -46.6333 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  longitude?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -100,6 +112,18 @@ export class UpdateFuelRecordDto {
   @IsOptional()
   @IsString()
   station?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  latitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  longitude?: number;
 
   @ApiPropertyOptional()
   @IsOptional()

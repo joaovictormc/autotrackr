@@ -34,6 +34,8 @@ export class FuelService {
         totalCost: dto.totalCost,
         fullTank: dto.fullTank ?? true,
         station: dto.station,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
         notes: dto.notes,
       },
     });
@@ -52,6 +54,8 @@ export class FuelService {
         ...(dto.totalCost != null && { totalCost: dto.totalCost }),
         ...(dto.fullTank !== undefined && { fullTank: dto.fullTank }),
         ...(dto.station !== undefined && { station: dto.station }),
+        ...(dto.latitude !== undefined && { latitude: dto.latitude }),
+        ...(dto.longitude !== undefined && { longitude: dto.longitude }),
         ...(dto.notes !== undefined && { notes: dto.notes }),
       },
     });

@@ -1,6 +1,13 @@
 import { api } from './client';
 
-export type FuelType = 'GASOLINA' | 'ETANOL' | 'DIESEL' | 'GNV' | 'ELETRICO';
+export type FuelType =
+  | 'GASOLINA'
+  | 'GASOLINA_ADITIVADA'
+  | 'GASOLINA_PODIUM'
+  | 'ETANOL'
+  | 'DIESEL'
+  | 'GNV'
+  | 'ELETRICO';
 
 export interface FuelTypeOption {
   key: FuelType;
@@ -10,8 +17,10 @@ export interface FuelTypeOption {
 }
 
 export const FUEL_TYPES: FuelTypeOption[] = [
-  { key: 'GASOLINA', label: 'Gasolina', unit: 'L', consumptionLabel: 'km/L' },
-  { key: 'ETANOL', label: 'Etanol', unit: 'L', consumptionLabel: 'km/L' },
+  { key: 'GASOLINA',           label: 'Gasolina Comum',     unit: 'L',   consumptionLabel: 'km/L' },
+  { key: 'GASOLINA_ADITIVADA', label: 'Gasolina Aditivada', unit: 'L',   consumptionLabel: 'km/L' },
+  { key: 'GASOLINA_PODIUM',    label: 'Gasolina Podium',    unit: 'L',   consumptionLabel: 'km/L' },
+  { key: 'ETANOL',             label: 'Etanol',             unit: 'L',   consumptionLabel: 'km/L' },
   { key: 'DIESEL', label: 'Diesel', unit: 'L', consumptionLabel: 'km/L' },
   { key: 'GNV', label: 'GNV', unit: 'm³', consumptionLabel: 'km/m³' },
   { key: 'ELETRICO', label: 'Energia Elétrica', unit: 'kWh', consumptionLabel: 'km/kWh' },
@@ -32,6 +41,8 @@ export interface FuelRecord {
   totalCost: string;
   fullTank: boolean;
   station?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -46,6 +57,8 @@ export interface CreateFuelPayload {
   totalCost: number;
   fullTank?: boolean;
   station?: string;
+  latitude?: number;
+  longitude?: number;
   notes?: string;
 }
 
