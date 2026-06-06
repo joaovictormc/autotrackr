@@ -37,3 +37,8 @@ backend/dist/
 
 # Brainstorming visual companion
 .superpowers/
+
+# Debug / scratch artifacts
+bug.jpeg
+bug.jpg
+bug.png
