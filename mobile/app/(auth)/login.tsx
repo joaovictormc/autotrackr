@@ -34,7 +34,16 @@ export default function LoginScreen() {
       await signIn(email.trim(), password);
     } catch (e: any) {
       const status = e?.response?.status;
-      setError(status === 401 ? t('auth.invalidCredentials') : t('auth.signInError'));
+      const serverMsg = e?.response?.data?.message;
+      // Loga o erro real no console do Expo para diagnóstico
+      console.error('[Login]', status, serverMsg ?? e?.message ?? e);
+      if (status === 401) {
+        setError(t('auth.invalidCredentials'));
+      } else if (!e?.response) {
+        setError('Não foi possível conectar ao servidor. Verifique a URL da API.');
+      } else {
+        setError(`${t('auth.signInError')} (${status})`);
+      }
     } finally {
       setLoading(false);
     }
