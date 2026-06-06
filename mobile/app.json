@@ -24,22 +24,7 @@
     },
     "plugins": [
       "expo-router",
-      "expo-status-bar",
-      "expo-secure-store",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/icon.png",
-          "color": "#0ea5e9",
-          "sounds": []
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "O AutoTrackr usa sua localização para identificar postos de combustível próximos."
-        }
-      ]
+      "expo-status-bar"
     ],
     "web": {
       "favicon": "./assets/favicon.png",

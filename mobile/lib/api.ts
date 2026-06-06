@@ -1,23 +1,40 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.1.2:3000/api/v1';
 
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
+// Web fallback: expo-secure-store usa localStorage no web
+const storage = {
+  get: (key: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null)
+      : SecureStore.getItemAsync(key),
+  set: (key: string, value: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(typeof localStorage !== 'undefined' ? localStorage.setItem(key, value) : undefined)
+      : SecureStore.setItemAsync(key, value),
+  del: (key: string) =>
+    Platform.OS === 'web'
+      ? Promise.resolve(typeof localStorage !== 'undefined' ? localStorage.removeItem(key) : undefined)
+      : SecureStore.deleteItemAsync(key),
+};
+
 export async function getAccessToken() {
-  return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  return storage.get(ACCESS_TOKEN_KEY);
 }
 
 export async function setTokens(access: string, refresh?: string) {
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, access);
-  if (refresh) await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refresh);
+  await storage.set(ACCESS_TOKEN_KEY, access);
+  if (refresh) await storage.set(REFRESH_TOKEN_KEY, refresh);
 }
 
 export async function clearTokens() {
-  await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await storage.del(ACCESS_TOKEN_KEY);
+  await storage.del(REFRESH_TOKEN_KEY);
 }
 
 let isRefreshing = false;
@@ -62,7 +79,7 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+        const refreshToken = await storage.get(REFRESH_TOKEN_KEY);
         if (!refreshToken) throw new Error('no refresh token');
 
         const { data } = await axios.post(

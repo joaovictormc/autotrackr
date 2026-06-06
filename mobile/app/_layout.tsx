@@ -1,10 +1,15 @@
 import '../global.css';
 import '../lib/i18n';
 import React from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+// NativeWind: no web, usa class-based dark mode
+if (Platform.OS === 'web') {
+  (StyleSheet as any).setFlag?.('darkMode', 'class');
+}
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister } from '../lib/queryClient';
 import { AuthProvider } from '../contexts/AuthContext';
