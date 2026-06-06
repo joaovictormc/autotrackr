@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Switch, ActivityIndicator } from 'react-native';
+import { Plus } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
+import DateField from './DateField';
 import type { MaintenanceRecord, MaintenanceType, CreateMaintenancePayload, Vehicle } from '@autotrackr/shared';
 
 interface Props {
@@ -19,8 +21,10 @@ const today = () => new Date().toISOString().split('T')[0];
 export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess, onClose }: Props) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const qc = useQueryClient();
 
   const [typeId, setTypeId] = useState('');
+  const [typeQuery, setTypeQuery] = useState('');
   const [typeOpen, setTypeOpen] = useState(false);
   const [date, setDate] = useState(today());
   const [mileage, setMileage] = useState(vehicle ? String(vehicle.mileage) : '');
@@ -37,11 +41,12 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
     queryFn: () => api.get<MaintenanceType[]>('/maintenance/types').then(r => r.data),
   });
 
-  const selectedType = types.find(t => t.id === typeId);
+  const selectedType = types.find(tp => tp.id === typeId);
 
   useEffect(() => {
     if (record) {
       setTypeId(record.maintenanceTypeId);
+      setTypeQuery(record.maintenanceType.name);
       setDate(record.date.slice(0, 10));
       setMileage(String(record.mileage));
       setCost(record.cost ? String(parseFloat(record.cost)) : '');
@@ -53,7 +58,7 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
     }
   }, [record]);
 
-  // Auto-suggest reminders when type is selected
+  // Sugere lembretes quando um tipo com intervalo padrão é escolhido (apenas em criação)
   useEffect(() => {
     if (!selectedType || record) return;
     if (selectedType.defaultIntervalKm && vehicle) {
@@ -65,6 +70,32 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
       setReminderDate(d.toISOString().split('T')[0]);
     }
   }, [typeId]);
+
+  // Filtra tipos pelo texto digitado
+  const q = typeQuery.trim().toLowerCase();
+  const filteredTypes = q
+    ? types.filter(tp => tp.name.toLowerCase().includes(q))
+    : types;
+  const exactMatch = types.some(tp => tp.name.toLowerCase() === q);
+  const canCreate = q.length > 0 && !exactMatch;
+
+  const createTypeMutation = useMutation({
+    mutationFn: (name: string) =>
+      api.post<MaintenanceType>('/maintenance/types', { name }).then(r => r.data),
+    onSuccess: (newType) => {
+      qc.invalidateQueries({ queryKey: ['maintenance-types'] });
+      setTypeId(newType.id);
+      setTypeQuery(newType.name);
+      setTypeOpen(false);
+    },
+    onError: () => setError(t('common.saveError')),
+  });
+
+  const selectType = (tp: MaintenanceType) => {
+    setTypeId(tp.id);
+    setTypeQuery(tp.name);
+    setTypeOpen(false);
+  };
 
   const mutation = useMutation({
     mutationFn: (payload: CreateMaintenancePayload) =>
@@ -85,7 +116,7 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
     if (isNaN(mil)) return setError(t('maintenance.errMileage'));
 
     setError('');
-    const payload: CreateMaintenancePayload = {
+    mutation.mutate({
       maintenanceTypeId: typeId,
       date,
       mileage: mil,
@@ -95,8 +126,7 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
       reminderMileage: reminderMileage ? parseInt(reminderMileage, 10) : undefined,
       isCompleted,
       notes: notes || undefined,
-    };
-    mutation.mutate(payload);
+    });
   };
 
   const inputStyle = {
@@ -122,30 +152,45 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
         </View>
       ) : null}
 
-      {/* Type selector */}
-      <View>
+      {/* Type — pesquisável / criável */}
+      <View style={{ zIndex: 10 }}>
         <Text style={labelStyle}>{t('maintenance.type')}</Text>
-        <TouchableOpacity
-          onPress={() => setTypeOpen(!typeOpen)}
-          style={{ ...inputStyle, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
-        >
-          <Text style={{ color: typeId ? colors.text : colors.textMuted, fontSize: 15 }}>
-            {selectedType?.name ?? t('maintenance.typeHelp')}
-          </Text>
-          <Text style={{ color: colors.textMuted }}>▾</Text>
-        </TouchableOpacity>
-        {typeOpen && (
-          <View style={{ backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginTop: 4, overflow: 'hidden', maxHeight: 200 }}>
-            <ScrollView>
-              {types.map(tp => (
+        <TextInput
+          style={{ ...inputStyle, borderColor: typeId ? colors.primary : colors.border }}
+          value={typeQuery}
+          onChangeText={(txt) => { setTypeQuery(txt); setTypeId(''); setTypeOpen(true); }}
+          onFocus={() => setTypeOpen(true)}
+          placeholder={t('maintenance.typeSearch')}
+          placeholderTextColor={colors.textMuted}
+        />
+        {typeOpen && (filteredTypes.length > 0 || canCreate) && (
+          <View style={{ backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, marginTop: 4, overflow: 'hidden', maxHeight: 180 }}>
+            <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+              {filteredTypes.map(tp => (
                 <TouchableOpacity
                   key={tp.id}
-                  onPress={() => { setTypeId(tp.id); setTypeOpen(false); }}
+                  onPress={() => selectType(tp)}
                   style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: tp.id === typeId ? colors.primary + '20' : 'transparent' }}
                 >
                   <Text style={{ color: colors.text }}>{tp.name}</Text>
                 </TouchableOpacity>
               ))}
+              {canCreate && (
+                <TouchableOpacity
+                  onPress={() => createTypeMutation.mutate(typeQuery.trim())}
+                  disabled={createTypeMutation.isPending}
+                  style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                >
+                  {createTypeMutation.isPending ? (
+                    <ActivityIndicator size="small" color={colors.primary} />
+                  ) : (
+                    <Plus size={16} color={colors.primary} />
+                  )}
+                  <Text style={{ color: colors.primary, fontWeight: '600' }}>
+                    {t('maintenance.createType', { name: typeQuery.trim() })}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </ScrollView>
           </View>
         )}
@@ -154,8 +199,7 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
       {/* Date & Mileage */}
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
-          <Text style={labelStyle}>{t('common.date')}</Text>
-          <TextInput style={inputStyle} value={date} onChangeText={setDate} placeholderTextColor={colors.textMuted} placeholder="YYYY-MM-DD" />
+          <DateField label={t('common.date')} value={date} onChange={setDate} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={labelStyle}>{t('maintenance.mileage')}</Text>
@@ -178,8 +222,13 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
       {/* Reminders */}
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
-          <Text style={labelStyle}>{t('maintenance.nextDate')}</Text>
-          <TextInput style={inputStyle} value={reminderDate} onChangeText={setReminderDate} placeholderTextColor={colors.textMuted} placeholder="YYYY-MM-DD" />
+          <DateField
+            label={t('maintenance.nextDate')}
+            value={reminderDate}
+            onChange={setReminderDate}
+            clearable
+            placeholder="—"
+          />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={labelStyle}>{t('maintenance.nextTitle')}</Text>

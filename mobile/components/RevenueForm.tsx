@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
+import DateField from './DateField';
 import { REVENUE_CATEGORIES } from '@autotrackr/shared';
 import type { RevenueRecord, CreateRevenuePayload } from '@autotrackr/shared';
 
@@ -87,14 +88,7 @@ export default function RevenueForm({ vehicleId, record, onSuccess, onClose }: P
       {/* Date & Amount */}
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
-          <Text style={labelStyle}>{t('common.date')}</Text>
-          <TextInput
-            style={inputStyle}
-            value={date}
-            onChangeText={setDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor={colors.textMuted}
-          />
+          <DateField label={t('common.date')} value={date} onChange={setDate} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={labelStyle}>{t('revenue.amount')}</Text>

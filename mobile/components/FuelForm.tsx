@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
+import DateField from './DateField';
 import { FUEL_TYPES, fuelTypeInfo } from '@autotrackr/shared';
 import type { FuelRecord, FuelType, CreateFuelPayload, Vehicle } from '@autotrackr/shared';
 
@@ -186,8 +187,7 @@ export default function FuelForm({ vehicleId, vehicle, record, onSuccess, onClos
       {/* Date & Mileage */}
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
-          <Text style={labelStyle}>{t('common.date')}</Text>
-          <TextInput style={inputStyle} value={form.date} onChangeText={v => setForm(p => ({ ...p, date: v }))} placeholderTextColor={colors.textMuted} placeholder="YYYY-MM-DD" />
+          <DateField label={t('common.date')} value={form.date} onChange={v => setForm(p => ({ ...p, date: v }))} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={labelStyle}>{t('fuel.mileage')}</Text>
