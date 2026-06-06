@@ -10,6 +10,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVehicle } from '../../contexts/VehicleContext';
 import { api } from '../../lib/api';
+import { avgConsumption } from '@autotrackr/shared';
 import type { MaintenanceRecord, FuelRecord } from '@autotrackr/shared';
 
 export default function DashboardScreen() {
@@ -41,13 +42,7 @@ export default function DashboardScreen() {
     return false;
   });
 
-  const avgConsumption = (() => {
-    const fullTanks = fuelRecords.filter(f => f.fullTank);
-    if (fullTanks.length < 2) return null;
-    const totalKm = fullTanks[0].mileage - fullTanks[fullTanks.length - 1].mileage;
-    const totalL = fullTanks.slice(0, -1).reduce((s, f) => s + parseFloat(f.quantity), 0);
-    return totalL > 0 ? (totalKm / totalL).toFixed(1) : null;
-  })();
+  const consumption = avgConsumption(fuelRecords);
 
   const recentItems = [
     ...fuelRecords.slice(0, 3).map(f => ({ ...f, _type: 'fuel' as const })),
@@ -146,7 +141,7 @@ export default function DashboardScreen() {
                 <Text style={{ color: colors.textMuted, fontSize: 11 }}>Média km/L</Text>
               </View>
               <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>
-                {avgConsumption ?? '—'}
+                {consumption ? consumption.value.toFixed(1) : '—'}
               </Text>
             </View>
           </View>

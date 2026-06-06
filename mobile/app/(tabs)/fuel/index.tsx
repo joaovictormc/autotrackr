@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
@@ -6,10 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, Pencil, Trash2 } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import BottomSheet from '@gorhom/bottom-sheet';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useVehicle } from '../../../contexts/VehicleContext';
 import { api } from '../../../lib/api';
+import FormSheet from '../../../components/FormSheet';
 import FuelForm from '../../../components/FuelForm';
 import type { FuelRecord } from '@autotrackr/shared';
 
@@ -18,7 +18,7 @@ export default function FuelScreen() {
   const { colors } = useTheme();
   const { vehicleId, vehicle } = useVehicle();
   const qc = useQueryClient();
-  const sheetRef = useRef<BottomSheet>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<FuelRecord | null>(null);
 
   const { data: records = [], isLoading, isRefetching, refetch } = useQuery({
@@ -32,9 +32,9 @@ export default function FuelScreen() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['fuel', vehicleId] }),
   });
 
-  const openNew = () => { setEditing(null); sheetRef.current?.expand(); };
-  const openEdit = (record: FuelRecord) => { setEditing(record); sheetRef.current?.expand(); };
-  const closeSheet = useCallback(() => sheetRef.current?.close(), []);
+  const openNew = () => { setEditing(null); setSheetOpen(true); };
+  const openEdit = (record: FuelRecord) => { setEditing(record); setSheetOpen(true); };
+  const closeSheet = () => setSheetOpen(false);
 
   const handleDelete = (id: string) => {
     Alert.alert(t('common.delete'), t('fuel.confirmDelete'), [
@@ -109,14 +109,7 @@ export default function FuelScreen() {
         )}
       </View>
 
-      <BottomSheet
-        ref={sheetRef}
-        index={-1}
-        snapPoints={['70%', '90%']}
-        enablePanDownToClose
-        backgroundStyle={{ backgroundColor: colors.surface }}
-        handleIndicatorStyle={{ backgroundColor: colors.border }}
-      >
+      <FormSheet visible={sheetOpen} onClose={closeSheet}>
         <FuelForm
           vehicleId={vehicleId!}
           vehicle={vehicle!}
@@ -124,7 +117,7 @@ export default function FuelScreen() {
           onSuccess={() => { closeSheet(); qc.invalidateQueries({ queryKey: ['fuel', vehicleId] }); }}
           onClose={closeSheet}
         />
-      </BottomSheet>
+      </FormSheet>
     </SafeAreaView>
   );
 }

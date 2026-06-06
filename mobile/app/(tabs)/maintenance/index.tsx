@@ -1,13 +1,13 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, Pencil, Trash2, CheckCircle, Circle } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import BottomSheet from '@gorhom/bottom-sheet';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useVehicle } from '../../../contexts/VehicleContext';
 import { api } from '../../../lib/api';
+import FormSheet from '../../../components/FormSheet';
 import MaintenanceForm from '../../../components/MaintenanceForm';
 import type { MaintenanceRecord } from '@autotrackr/shared';
 
@@ -16,7 +16,7 @@ export default function MaintenanceScreen() {
   const { colors } = useTheme();
   const { vehicleId, vehicle } = useVehicle();
   const qc = useQueryClient();
-  const sheetRef = useRef<BottomSheet>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<MaintenanceRecord | null>(null);
 
   const { data: records = [], isLoading, isRefetching, refetch } = useQuery({
@@ -36,9 +36,9 @@ export default function MaintenanceScreen() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['maintenance', vehicleId] }),
   });
 
-  const openNew = () => { setEditing(null); sheetRef.current?.expand(); };
-  const openEdit = (r: MaintenanceRecord) => { setEditing(r); sheetRef.current?.expand(); };
-  const closeSheet = useCallback(() => sheetRef.current?.close(), []);
+  const openNew = () => { setEditing(null); setSheetOpen(true); };
+  const openEdit = (r: MaintenanceRecord) => { setEditing(r); setSheetOpen(true); };
+  const closeSheet = () => setSheetOpen(false);
 
   const today = new Date();
   const getStatus = (r: MaintenanceRecord) => {
@@ -133,14 +133,7 @@ export default function MaintenanceScreen() {
         )}
       </View>
 
-      <BottomSheet
-        ref={sheetRef}
-        index={-1}
-        snapPoints={['75%', '95%']}
-        enablePanDownToClose
-        backgroundStyle={{ backgroundColor: colors.surface }}
-        handleIndicatorStyle={{ backgroundColor: colors.border }}
-      >
+      <FormSheet visible={sheetOpen} onClose={closeSheet}>
         <MaintenanceForm
           vehicleId={vehicleId!}
           vehicle={vehicle!}
@@ -148,7 +141,7 @@ export default function MaintenanceScreen() {
           onSuccess={() => { closeSheet(); qc.invalidateQueries({ queryKey: ['maintenance', vehicleId] }); }}
           onClose={closeSheet}
         />
-      </BottomSheet>
+      </FormSheet>
     </SafeAreaView>
   );
 }

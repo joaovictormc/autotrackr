@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
@@ -6,11 +6,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Plus, Pencil, Trash2 } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import BottomSheet from '@gorhom/bottom-sheet';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { useVehicle } from '../../../../contexts/VehicleContext';
 import { api } from '../../../../lib/api';
 import ScreenHeader from '../../../../components/ScreenHeader';
+import FormSheet from '../../../../components/FormSheet';
 import RevenueForm from '../../../../components/RevenueForm';
 import type { RevenueRecord } from '@autotrackr/shared';
 
@@ -20,7 +20,7 @@ export default function RevenueScreen() {
   const { vehicleId, vehicle } = useVehicle();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const sheetRef = useRef<BottomSheet>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<RevenueRecord | null>(null);
 
   const { data: records = [], isLoading, isRefetching, refetch } = useQuery({
@@ -34,9 +34,9 @@ export default function RevenueScreen() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['revenue', vehicleId] }),
   });
 
-  const openNew = () => { setEditing(null); sheetRef.current?.expand(); };
-  const openEdit = (r: RevenueRecord) => { setEditing(r); sheetRef.current?.expand(); };
-  const closeSheet = useCallback(() => sheetRef.current?.close(), []);
+  const openNew = () => { setEditing(null); setSheetOpen(true); };
+  const openEdit = (r: RevenueRecord) => { setEditing(r); setSheetOpen(true); };
+  const closeSheet = () => setSheetOpen(false);
 
   const handleDelete = (id: string) => {
     Alert.alert(t('common.delete'), t('revenue.confirmDelete'), [
@@ -113,21 +113,14 @@ export default function RevenueScreen() {
         />
       )}
 
-      <BottomSheet
-        ref={sheetRef}
-        index={-1}
-        snapPoints={['65%', '90%']}
-        enablePanDownToClose
-        backgroundStyle={{ backgroundColor: colors.surface }}
-        handleIndicatorStyle={{ backgroundColor: colors.border }}
-      >
+      <FormSheet visible={sheetOpen} onClose={closeSheet}>
         <RevenueForm
           vehicleId={vehicleId!}
           record={editing}
           onSuccess={() => { closeSheet(); qc.invalidateQueries({ queryKey: ['revenue', vehicleId] }); }}
           onClose={closeSheet}
         />
-      </BottomSheet>
+      </FormSheet>
     </View>
   );
 }
