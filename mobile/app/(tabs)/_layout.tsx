@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, Redirect } from 'expo-router';
-import { Home, Fuel, Wrench, User } from 'lucide-react-native';
+import { Home, Droplets, Wrench, User } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -38,7 +38,7 @@ function TabsLayout() {
         name="fuel"
         options={{
           title: t('nav.fuel'),
-          tabBarIcon: ({ color, size }) => <Fuel size={size} color={color} strokeWidth={1.8} />,
+          tabBarIcon: ({ color, size }) => <Droplets size={size} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tabs.Screen

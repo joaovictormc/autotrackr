@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl,
 } from 'react-native';
@@ -17,7 +17,7 @@ export default function DashboardScreen() {
   const { colors } = useTheme();
   const { user } = useAuth();
   const { vehicleId, vehicle, vehicles, setVehicleId, loadingVehicles } = useVehicle();
-  const [vehiclePicker, setVehiclePicker] = React.useState(false);
+  const [vehiclePicker, setVehiclePicker] = useState(false);
 
   const { data: maintenanceRecords = [], refetch: refetchMaint, isRefetching } = useQuery({
     queryKey: ['maintenance', vehicleId],
@@ -25,11 +25,13 @@ export default function DashboardScreen() {
     enabled: !!vehicleId,
   });
 
-  const { data: fuelRecords = [] } = useQuery({
+  const { data: fuelRecords = [], refetch: refetchFuel } = useQuery({
     queryKey: ['fuel', vehicleId],
     queryFn: () => api.get<FuelRecord[]>(`/vehicles/${vehicleId}/fuel`).then(r => r.data),
     enabled: !!vehicleId,
   });
+
+  const handleRefresh = () => { refetchMaint(); refetchFuel(); };
 
   const today = new Date();
   const overdueMaints = maintenanceRecords.filter(m => {
@@ -39,7 +41,6 @@ export default function DashboardScreen() {
     return false;
   });
 
-  const lastFuel = fuelRecords[0];
   const avgConsumption = (() => {
     const fullTanks = fuelRecords.filter(f => f.fullTank);
     if (fullTanks.length < 2) return null;
@@ -48,16 +49,23 @@ export default function DashboardScreen() {
     return totalL > 0 ? (totalKm / totalL).toFixed(1) : null;
   })();
 
-  const s = { background: colors.background, surface: colors.surface, border: colors.border };
+  const recentItems = [
+    ...fuelRecords.slice(0, 3).map(f => ({ ...f, _type: 'fuel' as const })),
+    ...maintenanceRecords.slice(0, 2).map(m => ({ ...m, _type: 'maint' as const })),
+  ]
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    .slice(0, 4);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: s.background }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <ScrollView
-        contentContainerStyle={{ padding: 16, gap: 12 }}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetchMaint} tintColor={colors.primary} />}
+        contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl refreshing={isRefetching} onRefresh={handleRefresh} tintColor={colors.primary} />
+        }
       >
         {/* Header */}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <Text style={{ color: colors.text, fontSize: 22, fontWeight: '700' }}>
             {t('nav.appName')}
           </Text>
@@ -68,29 +76,49 @@ export default function DashboardScreen() {
 
         {/* Vehicle Selector */}
         <TouchableOpacity
-          onPress={() => setVehiclePicker(!vehiclePicker)}
-          style={{ backgroundColor: s.surface, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: s.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          onPress={() => setVehiclePicker(v => !v)}
+          style={{
+            backgroundColor: colors.surface,
+            borderRadius: 12,
+            padding: 14,
+            borderWidth: 1,
+            borderColor: colors.border,
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 12,
+          }}
         >
-          <View>
-            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 2 }}>{t('common.vehicle')}</Text>
-            {loadingVehicles
-              ? <ActivityIndicator size="small" color={colors.primary} />
-              : <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>
-                  {vehicle ? `${vehicle.brand.name} ${vehicle.model.name} · ${vehicle.plate}` : t('common.selectVehicle')}
-                </Text>
-            }
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 3 }}>
+              {t('common.vehicle')}
+            </Text>
+            {loadingVehicles ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>
+                {vehicle
+                  ? `${vehicle.brand.name} ${vehicle.model.name} · ${vehicle.plate}`
+                  : t('common.selectVehicle')}
+              </Text>
+            )}
           </View>
           <ChevronDown size={18} color={colors.textMuted} />
         </TouchableOpacity>
 
         {/* Vehicle picker dropdown */}
         {vehiclePicker && vehicles.length > 0 && (
-          <View style={{ backgroundColor: s.surface, borderRadius: 12, borderWidth: 1, borderColor: s.border, overflow: 'hidden' }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: 12 }}>
             {vehicles.map(v => (
               <TouchableOpacity
                 key={v.id}
                 onPress={() => { setVehicleId(v.id); setVehiclePicker(false); }}
-                style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: s.border, backgroundColor: v.id === vehicleId ? colors.primary + '20' : 'transparent' }}
+                style={{
+                  padding: 14,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.border,
+                  backgroundColor: v.id === vehicleId ? colors.primary + '20' : 'transparent',
+                }}
               >
                 <Text style={{ color: colors.text, fontWeight: v.id === vehicleId ? '600' : '400' }}>
                   {v.brand.name} {v.model.name} · {v.plate}
@@ -102,19 +130,19 @@ export default function DashboardScreen() {
 
         {/* Stats row */}
         {vehicle && (
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View style={{ flex: 1, backgroundColor: s.surface, borderRadius: 12, padding: 14, borderTopWidth: 2, borderTopColor: colors.primary }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <Gauge size={14} color={colors.textMuted} />
+          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
+            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderTopWidth: 2, borderTopColor: colors.primary }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                <Gauge size={13} color={colors.textMuted} />
                 <Text style={{ color: colors.textMuted, fontSize: 11 }}>KM atual</Text>
               </View>
               <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>
                 {vehicle.mileage.toLocaleString('pt-BR')}
               </Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: s.surface, borderRadius: 12, padding: 14, borderTopWidth: 2, borderTopColor: colors.success }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <TrendingUp size={14} color={colors.textMuted} />
+            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderTopWidth: 2, borderTopColor: colors.success }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                <TrendingUp size={13} color={colors.textMuted} />
                 <Text style={{ color: colors.textMuted, fontSize: 11 }}>Média km/L</Text>
               </View>
               <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>
@@ -126,8 +154,8 @@ export default function DashboardScreen() {
 
         {/* Overdue maintenance alerts */}
         {overdueMaints.length > 0 && (
-          <View style={{ backgroundColor: '#422006', borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: colors.warning }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <View style={{ backgroundColor: '#422006', borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: colors.warning, marginBottom: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <AlertTriangle size={16} color={colors.warning} />
               <Text style={{ color: '#fed7aa', fontWeight: '600', fontSize: 13 }}>
                 {t('notifications.count_other', { count: overdueMaints.length })}
@@ -142,52 +170,61 @@ export default function DashboardScreen() {
         )}
 
         {/* Recent activity */}
-        <View>
-          <Text style={{ color: colors.textSecondary, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, fontWeight: '600' }}>
-            {t('dashboard.recentActivity')}
+        <Text style={{ color: colors.textSecondary, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10, fontWeight: '600' }}>
+          {t('dashboard.recentActivity')}
+        </Text>
+
+        {recentItems.length === 0 ? (
+          <Text style={{ color: colors.textMuted, fontSize: 13 }}>
+            {t('dashboard.noRecentActivity')}
           </Text>
-          {fuelRecords.length === 0 && maintenanceRecords.length === 0 ? (
-            <Text style={{ color: colors.textMuted, fontSize: 13 }}>{t('dashboard.noRecentActivity')}</Text>
-          ) : (
-            [...fuelRecords.slice(0, 3).map(f => ({ ...f, _type: 'fuel' as const })),
-             ...maintenanceRecords.slice(0, 2).map(m => ({ ...m, _type: 'maint' as const }))]
-              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-              .slice(0, 4)
-              .map((item) => (
-                <View key={item.id} style={{ backgroundColor: s.surface, borderRadius: 10, padding: 12, marginBottom: 6, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  {item._type === 'fuel' ? (
-                    <>
-                      <View>
-                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500' }}>
-                          {(item as FuelRecord).fuelType.replace('_', ' ')}
-                        </Text>
-                        <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 1 }}>
-                          {new Date((item as FuelRecord).date).toLocaleDateString('pt-BR')}
-                        </Text>
-                      </View>
-                      <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>
-                        {parseFloat((item as FuelRecord).quantity).toFixed(3)} L
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      <View>
-                        <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500' }}>
-                          {(item as MaintenanceRecord).maintenanceType.name}
-                        </Text>
-                        <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 1 }}>
-                          {new Date((item as MaintenanceRecord).date).toLocaleDateString('pt-BR')}
-                        </Text>
-                      </View>
-                      <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                        {(item as MaintenanceRecord).mileage.toLocaleString('pt-BR')} km
-                      </Text>
-                    </>
-                  )}
-                </View>
-              ))
-          )}
-        </View>
+        ) : (
+          recentItems.map(item => (
+            <View
+              key={item.id}
+              style={{
+                backgroundColor: colors.surface,
+                borderRadius: 10,
+                padding: 12,
+                marginBottom: 8,
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              {item._type === 'fuel' ? (
+                <>
+                  <View style={{ flex: 1 }}>
+                    {/* FIX: usa i18n em vez de raw enum */}
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500' }}>
+                      {t(`fuel.types.${(item as FuelRecord).fuelType}`)}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                      {new Date((item as FuelRecord).date).toLocaleDateString('pt-BR')}
+                    </Text>
+                  </View>
+                  <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>
+                    {parseFloat((item as FuelRecord).quantity).toFixed(3)} L
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500' }}>
+                      {(item as MaintenanceRecord).maintenanceType.name}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                      {new Date((item as MaintenanceRecord).date).toLocaleDateString('pt-BR')}
+                    </Text>
+                  </View>
+                  <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                    {(item as MaintenanceRecord).mileage.toLocaleString('pt-BR')} km
+                  </Text>
+                </>
+              )}
+            </View>
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
