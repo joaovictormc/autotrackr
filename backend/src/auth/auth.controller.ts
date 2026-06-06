@@ -37,19 +37,21 @@ export class AuthController {
 
   @Post('sign-up')
   @ApiOperation({ summary: 'Cadastrar novo usuário' })
-  async signUp(@Body() dto: SignUpDto, @Res({ passthrough: true }) res: Response) {
+  async signUp(@Body() dto: SignUpDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.signUp(dto.email, dto.password, dto.name, dto.phone);
     this.auth.setRefreshCookie(res, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    const isMobile = req.headers['x-client'] === 'mobile';
+    return { accessToken: result.accessToken, user: result.user, ...(isMobile && { refreshToken: result.refreshToken }) };
   }
 
   @Post('sign-in')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Fazer login' })
-  async signIn(@Body() dto: SignInDto, @Res({ passthrough: true }) res: Response) {
+  async signIn(@Body() dto: SignInDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const result = await this.auth.signIn(dto.email, dto.password);
     this.auth.setRefreshCookie(res, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+    const isMobile = req.headers['x-client'] === 'mobile';
+    return { accessToken: result.accessToken, user: result.user, ...(isMobile && { refreshToken: result.refreshToken }) };
   }
 
   @Post('sign-out')
@@ -72,10 +74,11 @@ export class AuthController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const oldToken = req?.cookies?.refreshToken;
+    const oldToken = req?.cookies?.refreshToken ?? req?.body?.refreshToken;
     const result = await this.auth.refresh(user.sub, oldToken);
     this.auth.setRefreshCookie(res, result.refreshToken);
-    return { accessToken: result.accessToken };
+    const isMobile = req.headers['x-client'] === 'mobile';
+    return { accessToken: result.accessToken, ...(isMobile && { refreshToken: result.refreshToken }) };
   }
 
   @Post('forgot-password')

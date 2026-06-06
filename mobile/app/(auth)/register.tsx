@@ -4,6 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { Link } from 'expo-router';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -16,6 +17,7 @@ export default function RegisterScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -84,14 +86,25 @@ export default function RegisterScreen() {
           ))}
           <View>
             <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 6, fontWeight: '500' }}>{t('auth.password')}</Text>
-            <TextInput
-              style={inputStyle}
-              placeholder={t('auth.password')}
-              placeholderTextColor={colors.textMuted}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 10 }}>
+              <TextInput
+                style={{ ...inputStyle, flex: 1, borderWidth: 0, borderRadius: 0 }}
+                placeholder={t('auth.password')}
+                placeholderTextColor={colors.textMuted}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(v => !v)}
+                style={{ paddingHorizontal: 14 }}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {showPassword
+                  ? <EyeOff size={20} color={colors.textMuted} />
+                  : <Eye size={20} color={colors.textMuted} />}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
