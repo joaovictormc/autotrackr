@@ -3,15 +3,21 @@ import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronRight, TrendingUp, BarChart2, Car, Sun, Globe, LogOut } from 'lucide-react-native';
+import { ChevronRight, TrendingUp, BarChart2, Car, Sun, Moon, Smartphone, Globe, LogOut } from 'lucide-react-native';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { useAuth } from '../../../contexts/AuthContext';
 
 export default function ProfileScreen() {
-  const { t } = useTranslation();
-  const { colors } = useTheme();
+  const { t, i18n } = useTranslation();
+  const { colors, preference } = useTheme();
   const { user, signOut } = useAuth();
   const router = useRouter();
+
+  const themeLabel = preference === 'light' ? t('personalization.light')
+    : preference === 'dark' ? t('personalization.dark')
+    : t('personalization.system');
+  const ThemeIcon = preference === 'light' ? Sun : preference === 'dark' ? Moon : Smartphone;
+  const langLabel = i18n.language?.startsWith('pt') ? t('language.portuguese') : t('language.english');
 
   const handleSignOut = () => {
     Alert.alert(t('profile.logout'), t('profile.logoutConfirm'), [
@@ -58,8 +64,8 @@ export default function ProfileScreen() {
         </View>
 
         <View style={{ backgroundColor: colors.surface, borderRadius: 12, marginHorizontal: 16, overflow: 'hidden' }}>
-          <MenuItem icon={<Sun {...iconProps} />} label={t('profile.theme')} onPress={() => router.push('/(tabs)/profile/theme')} />
-          <MenuItem icon={<Globe {...iconProps} />} label={t('profile.language')} onPress={() => router.push('/(tabs)/profile/language')} />
+          <MenuItem icon={<ThemeIcon {...iconProps} />} label={t('profile.theme')} badge={themeLabel} onPress={() => router.push('/(tabs)/profile/theme')} />
+          <MenuItem icon={<Globe {...iconProps} />} label={t('profile.language')} badge={langLabel} onPress={() => router.push('/(tabs)/profile/language')} />
         </View>
 
         <View style={{ backgroundColor: colors.surface, borderRadius: 12, margin: 16, overflow: 'hidden' }}>
