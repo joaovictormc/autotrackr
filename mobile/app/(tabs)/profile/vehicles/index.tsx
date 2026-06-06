@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useRef, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check, Trash2, Star, Car } from 'lucide-react-native';
+import { Check, Trash2, Star, Car, Plus } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import BottomSheet from '@gorhom/bottom-sheet';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { useVehicle } from '../../../../contexts/VehicleContext';
 import { api } from '../../../../lib/api';
 import ScreenHeader from '../../../../components/ScreenHeader';
+import AddVehicleForm from '../../../../components/AddVehicleForm';
 import type { Vehicle } from '@autotrackr/shared';
 
 export default function VehiclesScreen() {
@@ -16,6 +18,9 @@ export default function VehiclesScreen() {
   const { vehicles, vehicleId, setVehicleId, loadingVehicles } = useVehicle();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
+  const sheetRef = useRef<BottomSheet>(null);
+  const openAdd = () => sheetRef.current?.expand();
+  const closeSheet = useCallback(() => sheetRef.current?.close(), []);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/vehicles/${id}`),
@@ -78,7 +83,17 @@ export default function VehiclesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScreenHeader title={t('profile.vehicles')} />
+      <ScreenHeader
+        title={t('profile.vehicles')}
+        right={
+          <TouchableOpacity
+            onPress={openAdd}
+            style={{ backgroundColor: colors.primary, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Plus size={20} color="#fff" />
+          </TouchableOpacity>
+        }
+      />
 
       {loadingVehicles ? (
         <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
@@ -95,6 +110,20 @@ export default function VehiclesScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
         />
       )}
+
+      <BottomSheet
+        ref={sheetRef}
+        index={-1}
+        snapPoints={['80%', '95%']}
+        enablePanDownToClose
+        backgroundStyle={{ backgroundColor: colors.surface }}
+        handleIndicatorStyle={{ backgroundColor: colors.border }}
+      >
+        <AddVehicleForm
+          onSuccess={() => { closeSheet(); qc.invalidateQueries({ queryKey: ['vehicles'] }); }}
+          onClose={closeSheet}
+        />
+      </BottomSheet>
     </View>
   );
 }
