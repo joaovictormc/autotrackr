@@ -24,6 +24,7 @@ import {
   Trash2,
   TrendingUp,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { vehiclesApi, Vehicle } from '../api/vehicles.api';
 import { maintenanceApi, MaintenanceRecord } from '../api/maintenance.api';
@@ -33,6 +34,8 @@ import StatCard from '../components/StatCard';
 
 export default function Dashboard() {
   const theme = useTheme();
+  const { t, i18n } = useTranslation();
+  const isPt = i18n.language?.startsWith('pt');
   const { user, userProfile } = useAuth();
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -53,7 +56,7 @@ export default function Dashboard() {
       setVehicles(data);
       return data;
     } catch {
-      setError('Não foi possível carregar seus veículos. Por favor, tente novamente.');
+      setError(t('dashboard.loadError'));
       return [];
     } finally {
       setLoading(false);
@@ -80,12 +83,12 @@ export default function Dashboard() {
   }, [user]);
 
   const handleDeleteVehicle = async (id: string) => {
-    if (!window.confirm('Tem certeza que deseja remover este veículo? Esta ação não pode ser desfeita.')) return;
+    if (!window.confirm(t('dashboard.confirmDelete'))) return;
     try {
       await vehiclesApi.deleteVehicle(id);
       setVehicles((prev) => prev.filter((v) => v.id !== id));
     } catch {
-      setError('Erro ao remover o veículo. Tente novamente.');
+      setError(t('dashboard.deleteError'));
     }
   };
 
@@ -103,25 +106,26 @@ export default function Dashboard() {
   }).length;
 
   const totalCost = allRecords.reduce((sum, r) => sum + parseFloat(r.cost ?? '0'), 0);
+  const numLocale = isPt ? 'pt-BR' : 'en-US';
   const totalCostLabel = maintenanceLoading
     ? '—'
-    : `R$ ${totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    : `R$ ${totalCost.toLocaleString(numLocale, { minimumFractionDigits: 2 })}`;
 
   const vehicleColumns: GridColDef[] = [
-    { field: 'brandName', headerName: 'Marca', flex: 1, valueGetter: (params: { row: Vehicle }) => params.row.brand?.name ?? '' },
-    { field: 'modelName', headerName: 'Modelo', flex: 1.5, valueGetter: (params: { row: Vehicle }) => params.row.model?.name ?? '' },
-    { field: 'plate', headerName: 'Placa', flex: 0.8 },
+    { field: 'brandName', headerName: t('dashboard.col.brand'), flex: 1, valueGetter: (params: { row: Vehicle }) => params.row.brand?.name ?? '' },
+    { field: 'modelName', headerName: t('dashboard.col.model'), flex: 1.5, valueGetter: (params: { row: Vehicle }) => params.row.model?.name ?? '' },
+    { field: 'plate', headerName: t('dashboard.col.plate'), flex: 0.8 },
     {
-      field: 'year', headerName: 'Ano', flex: 0.6, type: 'number',
+      field: 'year', headerName: t('dashboard.col.year'), flex: 0.6, type: 'number',
       valueFormatter: (params: { value: number }) => String(params.value),
     },
     {
-      field: 'mileage', headerName: 'Quilometragem', flex: 0.9, type: 'number',
-      valueFormatter: (params: { value: number }) => `${params.value.toLocaleString('pt-BR')} km`,
+      field: 'mileage', headerName: t('dashboard.col.mileage'), flex: 0.9, type: 'number',
+      valueFormatter: (params: { value: number }) => `${params.value.toLocaleString(numLocale)} km`,
     },
     {
       field: 'actions',
-      headerName: 'Ações',
+      headerName: t('common.actions'),
       width: 100,
       sortable: false,
       disableColumnMenu: true,
@@ -179,10 +183,10 @@ export default function Dashboard() {
             >
               <Box>
                 <Typography variant="h4" component="h1" sx={{ fontWeight: 700, color: 'primary.main' }}>
-                  Bem-vindo(a), {userProfile?.name?.split(' ')[0] || userProfile?.email || 'Usuário'}
+                  {t('dashboard.welcome', { name: userProfile?.name?.split(' ')[0] || userProfile?.email || 'Usuário' })}
                 </Typography>
                 <Typography variant="body1" color="text.secondary" sx={{ mt: 0.5 }}>
-                  Gerencie seus veículos e manutenções em um só lugar.
+                  {t('dashboard.subtitle')}
                 </Typography>
               </Box>
               <Button
@@ -191,7 +195,7 @@ export default function Dashboard() {
                 onClick={() => setAddVehicleOpen(true)}
                 sx={{ whiteSpace: 'nowrap' }}
               >
-                Adicionar Veículo
+                {t('dashboard.addVehicle')}
               </Button>
             </Stack>
           </Box>
@@ -202,14 +206,14 @@ export default function Dashboard() {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               icon={Car}
-              title="Total de Veículos"
+              title={t('dashboard.totalVehicles')}
               value={loading ? '—' : vehicles.length.toString()}
               subtitle={
                 loading
-                  ? 'Carregando...'
+                  ? t('common.loading')
                   : vehicles.length === 0
-                  ? 'Nenhum veículo cadastrado'
-                  : `${vehicles.length} veículo${vehicles.length !== 1 ? 's' : ''} registrado${vehicles.length !== 1 ? 's' : ''}`
+                  ? t('dashboard.noneRegistered')
+                  : t('dashboard.vehiclesRegistered', { count: vehicles.length })
               }
               color={theme.palette.primary.main}
             />
@@ -217,14 +221,14 @@ export default function Dashboard() {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               icon={Tool}
-              title="Manutenções Pendentes"
+              title={t('dashboard.pendingMaintenance')}
               value={maintenanceLoading ? '—' : pendingCount.toString()}
               subtitle={
                 maintenanceLoading
-                  ? 'Carregando...'
+                  ? t('common.loading')
                   : pendingCount === 0
-                  ? 'Nenhuma pendência'
-                  : `${pendingCount} registro${pendingCount !== 1 ? 's' : ''} pendente${pendingCount !== 1 ? 's' : ''}`
+                  ? t('dashboard.noPending')
+                  : t('dashboard.pending', { count: pendingCount })
               }
               color={theme.palette.error.main}
             />
@@ -232,14 +236,14 @@ export default function Dashboard() {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               icon={AlertTriangle}
-              title="Alertas"
+              title={t('dashboard.alerts')}
               value={maintenanceLoading ? '—' : alertsCount.toString()}
               subtitle={
                 maintenanceLoading
-                  ? 'Carregando...'
+                  ? t('common.loading')
                   : alertsCount === 0
-                  ? 'Nenhum alerta'
-                  : `${alertsCount} lembrete${alertsCount !== 1 ? 's' : ''} vencido${alertsCount !== 1 ? 's' : ''}`
+                  ? t('dashboard.noAlerts')
+                  : t('dashboard.alerts', { count: alertsCount })
               }
               color={theme.palette.warning.main}
             />
@@ -247,14 +251,14 @@ export default function Dashboard() {
           <Grid item xs={12} sm={6} md={3}>
             <StatCard
               icon={TrendingUp}
-              title="Gastos Totais"
+              title={t('dashboard.totalExpenses')}
               value={totalCostLabel}
               subtitle={
                 maintenanceLoading
-                  ? 'Carregando...'
+                  ? t('common.loading')
                   : totalCost === 0
-                  ? 'Nenhuma despesa registrada'
-                  : 'Total em manutenções'
+                  ? t('dashboard.noExpenses')
+                  : t('dashboard.expensesSubtitle')
               }
               color={theme.palette.success.main}
             />
@@ -267,7 +271,7 @@ export default function Dashboard() {
             <CardContent>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h6" fontWeight={600}>
-                  Meus Veículos
+                  {t('dashboard.myVehicles')}
                 </Typography>
                 <Button
                   size="small"
@@ -275,7 +279,7 @@ export default function Dashboard() {
                   onClick={() => fetchVehicles().then(fetchMaintenanceStats)}
                   disabled={loading}
                 >
-                  Atualizar
+                  {t('common.refresh')}
                 </Button>
               </Box>
 
@@ -291,7 +295,7 @@ export default function Dashboard() {
                 </Box>
               ) : vehicles.length === 0 ? (
                 <Alert severity="info">
-                  Você ainda não possui veículos cadastrados. Clique em "Adicionar Veículo" para começar.
+                  {t('dashboard.noVehiclesYet')}
                 </Alert>
               ) : (
                 <Box sx={{ height: 420 }}>
@@ -301,7 +305,7 @@ export default function Dashboard() {
                     initialState={{ pagination: { paginationModel: { page: 0, pageSize: 5 } } }}
                     pageSizeOptions={[5, 10]}
                     disableRowSelectionOnClick
-                    localeText={ptBR.components.MuiDataGrid.defaultProps.localeText}
+                    localeText={isPt ? ptBR.components.MuiDataGrid.defaultProps.localeText : undefined}
                   />
                 </Box>
               )}

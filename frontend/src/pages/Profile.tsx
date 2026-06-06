@@ -15,12 +15,14 @@ import {
 } from '@mui/material';
 import { Lock, Save, User as UserIcon } from 'lucide-react';
 import { useSnackbar } from 'notistack';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { authApi } from '../api/auth.api';
 
 export default function Profile() {
   const { userProfile, refreshProfile } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
+  const { t } = useTranslation();
 
   // Dados pessoais
   const [name, setName] = useState('');
@@ -44,17 +46,17 @@ export default function Profile() {
   const handleSaveProfile = async () => {
     setProfileError('');
     if (!name.trim()) {
-      setProfileError('Informe seu nome.');
+      setProfileError(t('profile.nameRequired'));
       return;
     }
     setSavingProfile(true);
     try {
       await authApi.updateMe({ name: name.trim(), phone: phone.trim() || undefined });
       await refreshProfile();
-      enqueueSnackbar('Perfil atualizado!', { variant: 'success', autoHideDuration: 3000 });
+      enqueueSnackbar(t('profile.profileUpdated'), { variant: 'success', autoHideDuration: 3000 });
     } catch (err: any) {
       const msg = err.response?.data?.message;
-      setProfileError(Array.isArray(msg) ? msg.join(' | ') : msg || 'Erro ao atualizar perfil.');
+      setProfileError(Array.isArray(msg) ? msg.join(' | ') : msg || t('profile.profileError'));
     } finally {
       setSavingProfile(false);
     }
@@ -63,11 +65,11 @@ export default function Profile() {
   const handleChangePassword = async () => {
     setPasswordError('');
     if (password.length < 8) {
-      setPasswordError('A senha deve ter no mínimo 8 caracteres.');
+      setPasswordError(t('profile.passwordMin'));
       return;
     }
     if (password !== confirmPassword) {
-      setPasswordError('As senhas não coincidem.');
+      setPasswordError(t('profile.passwordMismatch'));
       return;
     }
     setSavingPassword(true);
@@ -75,10 +77,10 @@ export default function Profile() {
       await authApi.updatePassword(password);
       setPassword('');
       setConfirmPassword('');
-      enqueueSnackbar('Senha alterada com sucesso!', { variant: 'success', autoHideDuration: 3000 });
+      enqueueSnackbar(t('profile.passwordChanged'), { variant: 'success', autoHideDuration: 3000 });
     } catch (err: any) {
       const msg = err.response?.data?.message;
-      setPasswordError(Array.isArray(msg) ? msg.join(' | ') : msg || 'Erro ao alterar a senha.');
+      setPasswordError(Array.isArray(msg) ? msg.join(' | ') : msg || t('profile.passwordError'));
     } finally {
       setSavingPassword(false);
     }
@@ -88,7 +90,7 @@ export default function Profile() {
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
         <UserIcon size={24} />
-        <Typography variant="h5" fontWeight={700}>Meu Perfil</Typography>
+        <Typography variant="h5" fontWeight={700}>{t('profile.title')}</Typography>
       </Stack>
 
       <Grid container spacing={3}>
@@ -97,10 +99,10 @@ export default function Profile() {
           <Card>
             <CardContent>
               <Typography variant="h6" fontWeight={600} sx={{ mb: 0.5 }}>
-                Dados pessoais
+                {t('profile.personalData')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Atualize seu nome e telefone de contato.
+                {t('profile.personalDataSub')}
               </Typography>
               <Divider sx={{ mb: 3 }} />
 
@@ -110,7 +112,7 @@ export default function Profile() {
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Nome"
+                    label={t('profile.name')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                   />
@@ -118,7 +120,7 @@ export default function Profile() {
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Telefone"
+                    label={t('profile.phone')}
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="(11) 99999-9999"
@@ -127,10 +129,10 @@ export default function Profile() {
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="E-mail"
+                    label={t('profile.email')}
                     value={userProfile?.email ?? ''}
                     disabled
-                    helperText="O e-mail não pode ser alterado."
+                    helperText={t('profile.emailLocked')}
                   />
                 </Grid>
               </Grid>
@@ -142,7 +144,7 @@ export default function Profile() {
                   disabled={savingProfile}
                   startIcon={savingProfile ? <CircularProgress size={16} color="inherit" /> : <Save size={16} />}
                 >
-                  {savingProfile ? 'Salvando...' : 'Salvar alterações'}
+                  {savingProfile ? t('common.saving') : t('profile.saveChanges')}
                 </Button>
               </Box>
             </CardContent>
@@ -154,10 +156,10 @@ export default function Profile() {
           <Card>
             <CardContent>
               <Typography variant="h6" fontWeight={600} sx={{ mb: 0.5 }}>
-                Alterar senha
+                {t('profile.changePassword')}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Use uma senha forte com no mínimo 8 caracteres.
+                {t('profile.changePasswordSub')}
               </Typography>
               <Divider sx={{ mb: 3 }} />
 
@@ -167,7 +169,7 @@ export default function Profile() {
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Nova senha"
+                    label={t('profile.newPassword')}
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -177,7 +179,7 @@ export default function Profile() {
                 <Grid item xs={12} sm={6}>
                   <TextField
                     fullWidth
-                    label="Confirmar nova senha"
+                    label={t('profile.confirmPassword')}
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -193,7 +195,7 @@ export default function Profile() {
                   disabled={savingPassword || !password || !confirmPassword}
                   startIcon={savingPassword ? <CircularProgress size={16} color="inherit" /> : <Lock size={16} />}
                 >
-                  {savingPassword ? 'Alterando...' : 'Alterar senha'}
+                  {savingPassword ? t('profile.changing') : t('profile.changePasswordBtn')}
                 </Button>
               </Box>
             </CardContent>

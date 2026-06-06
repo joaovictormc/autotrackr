@@ -23,6 +23,7 @@ import {
 import { DataGrid, GridColDef, GridRenderCellParams, ptBR } from '@mui/x-data-grid';
 import { Edit, Plus, RefreshCw, Trash2, TrendingUp } from 'lucide-react';
 import { useSnackbar } from 'notistack';
+import { useTranslation } from 'react-i18next';
 import { vehiclesApi, Vehicle } from '../api/vehicles.api';
 import { revenueApi, RevenueRecord, REVENUE_CATEGORIES, CreateRevenuePayload } from '../api/revenue.api';
 
@@ -40,11 +41,14 @@ const EMPTY_FORM: RevenueForm = {
   notes: '',
 };
 
-const brl = (v: string | number) =>
-  `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+const brl = (v: string | number, locale: string) =>
+  `R$ ${Number(v).toLocaleString(locale, { minimumFractionDigits: 2 })}`;
 
 export default function Revenue() {
   const { enqueueSnackbar } = useSnackbar();
+  const { t, i18n } = useTranslation();
+  const isPt = i18n.language?.startsWith('pt');
+  const numLocale = isPt ? 'pt-BR' : 'en-US';
   const theme = useTheme();
   const fullScreenDialog = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -66,7 +70,7 @@ export default function Revenue() {
         setVehicles(list);
         if (list.length > 0) setSelectedVehicleId(list[0].id);
       })
-      .catch(() => enqueueSnackbar('Erro ao carregar veículos.', { variant: 'error' }))
+      .catch(() => enqueueSnackbar(t('common.loadDataError'), { variant: 'error' }))
       .finally(() => setLoadingVehicles(false));
   }, []);
 
@@ -76,11 +80,11 @@ export default function Revenue() {
     try {
       setRecords(await revenueApi.getRecords(vehicleId));
     } catch {
-      enqueueSnackbar('Erro ao carregar receitas.', { variant: 'error' });
+      enqueueSnackbar(t('common.loadRecordsError'), { variant: 'error' });
     } finally {
       setLoadingRecords(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchRecords(selectedVehicleId);
@@ -113,8 +117,8 @@ export default function Revenue() {
   const handleSave = async () => {
     setFormError('');
     const amount = parseFloat(form.amount);
-    if (!form.category) { setFormError('Selecione uma categoria.'); return; }
-    if (isNaN(amount) || amount < 0) { setFormError('Informe um valor válido.'); return; }
+    if (!form.category) { setFormError(t('revenue.errCategory')); return; }
+    if (isNaN(amount) || amount < 0) { setFormError(t('revenue.errAmount')); return; }
 
     setSaving(true);
     try {
@@ -126,57 +130,57 @@ export default function Revenue() {
       };
       if (editing) {
         await revenueApi.updateRecord(selectedVehicleId, editing.id, payload);
-        enqueueSnackbar('Receita atualizada!', { variant: 'success' });
+        enqueueSnackbar(t('revenue.saved'), { variant: 'success' });
       } else {
         await revenueApi.createRecord(selectedVehicleId, payload);
-        enqueueSnackbar('Receita registrada!', { variant: 'success' });
+        enqueueSnackbar(t('revenue.created'), { variant: 'success' });
       }
       closeDialog();
       fetchRecords(selectedVehicleId);
     } catch (err: any) {
       const msg = err.response?.data?.message;
-      setFormError(Array.isArray(msg) ? msg.join(' | ') : msg || 'Erro ao salvar.');
+      setFormError(Array.isArray(msg) ? msg.join(' | ') : msg || t('common.saveError'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Remover esta receita? Ação irreversível.')) return;
+    if (!window.confirm(t('revenue.confirmDelete'))) return;
     try {
       await revenueApi.deleteRecord(selectedVehicleId, id);
       setRecords((prev) => prev.filter((r) => r.id !== id));
-      enqueueSnackbar('Receita removida.', { variant: 'success' });
+      enqueueSnackbar(t('revenue.removed'), { variant: 'success' });
     } catch {
-      enqueueSnackbar('Erro ao remover.', { variant: 'error' });
+      enqueueSnackbar(t('common.removeError'), { variant: 'error' });
     }
   };
 
   const columns: GridColDef[] = [
     {
-      field: 'date', headerName: 'Data', flex: 0.8,
+      field: 'date', headerName: t('revenue.col.date'), flex: 0.8,
       valueFormatter: (params: { value: string }) => {
         if (!params.value) return '—';
         const [y, m, d] = params.value.slice(0, 10).split('-');
-        return `${d}/${m}/${y}`;
+        return isPt ? `${d}/${m}/${y}` : `${m}/${d}/${y}`;
       },
     },
-    { field: 'category', headerName: 'Categoria', flex: 1.2 },
+    { field: 'category', headerName: t('revenue.col.category'), flex: 1.2 },
     {
-      field: 'amount', headerName: 'Valor', flex: 0.8,
+      field: 'amount', headerName: t('revenue.col.amount'), flex: 0.8,
       valueGetter: (params: { row: RevenueRecord }) => parseFloat(params.row.amount),
       renderCell: (params: GridRenderCellParams<RevenueRecord>) => (
         <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
-          {brl(params.row.amount)}
+          {brl(params.row.amount, numLocale)}
         </Typography>
       ),
     },
     {
-      field: 'notes', headerName: 'Observações', flex: 1.4,
+      field: 'notes', headerName: t('revenue.col.notes'), flex: 1.4,
       valueFormatter: (params: { value: string | null }) => params.value ?? '—',
     },
     {
-      field: 'actions', headerName: 'Ações', width: 100, sortable: false, disableColumnMenu: true,
+      field: 'actions', headerName: t('common.actions'), width: 100, sortable: false, disableColumnMenu: true,
       renderCell: (params: GridRenderCellParams<RevenueRecord>) => (
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ height: '100%' }}>
           <IconButton size="small" onClick={() => openDialog(params.row as RevenueRecord)} sx={{ color: 'primary.main' }}>
@@ -197,10 +201,10 @@ export default function Revenue() {
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
           <TrendingUp size={24} />
-          <Typography variant="h5" fontWeight={700}>Receitas</Typography>
+          <Typography variant="h5" fontWeight={700}>{t('revenue.title')}</Typography>
         </Stack>
         <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => openDialog()} disabled={!selectedVehicleId || loadingVehicles}>
-          Adicionar Receita
+          {t('revenue.add')}
         </Button>
       </Stack>
 
@@ -209,10 +213,10 @@ export default function Revenue() {
           {loadingVehicles ? (
             <CircularProgress size={24} />
           ) : vehicles.length === 0 ? (
-            <Alert severity="info">Nenhum veículo cadastrado. Adicione um veículo no Dashboard primeiro.</Alert>
+            <Alert severity="info">{t('common.noVehicles')}</Alert>
           ) : (
             <TextField
-              select label="Veículo" value={selectedVehicleId}
+              select label={t('common.vehicle')} value={selectedVehicleId}
               onChange={(e) => setSelectedVehicleId(e.target.value)}
               size="small" sx={{ width: { xs: '100%', sm: 360 } }}
             >
@@ -230,7 +234,7 @@ export default function Revenue() {
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6" fontWeight={600}>
-              Receitas
+              {t('revenue.list')}
               {selectedVehicle && (
                 <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
                   — {selectedVehicle.brand?.name} {selectedVehicle.model?.name} · {selectedVehicle.plate}
@@ -243,11 +247,11 @@ export default function Revenue() {
           </Box>
 
           {!selectedVehicleId ? (
-            <Alert severity="info">Selecione um veículo para ver as receitas.</Alert>
+            <Alert severity="info">{t('revenue.selectToView')}</Alert>
           ) : loadingRecords ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>
           ) : records.length === 0 ? (
-            <Alert severity="info">Nenhuma receita registrada. Clique em "Adicionar Receita" para começar.</Alert>
+            <Alert severity="info">{t('revenue.empty')}</Alert>
           ) : (
             <Box sx={{ height: 450 }}>
               <DataGrid
@@ -256,7 +260,7 @@ export default function Revenue() {
                 initialState={{ pagination: { paginationModel: { page: 0, pageSize: 10 } } }}
                 pageSizeOptions={[10, 25]}
                 disableRowSelectionOnClick
-                localeText={ptBR.components.MuiDataGrid.defaultProps.localeText}
+                localeText={isPt ? ptBR.components.MuiDataGrid.defaultProps.localeText : undefined}
               />
             </Box>
           )}
@@ -264,13 +268,13 @@ export default function Revenue() {
       </Card>
 
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm" fullScreen={fullScreenDialog}>
-        <DialogTitle>{editing ? 'Editar Receita' : 'Nova Receita'}</DialogTitle>
+        <DialogTitle>{editing ? t('revenue.editTitle') : t('revenue.newTitle')}</DialogTitle>
         <DialogContent>
           {formError && <Alert severity="error" sx={{ mb: 2 }}>{formError}</Alert>}
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
             <Grid item xs={12} sm={6}>
               <TextField
-                select fullWidth label="Categoria" value={form.category}
+                select fullWidth label={t('revenue.category')} value={form.category}
                 onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
               >
                 {REVENUE_CATEGORIES.map((c) => (
@@ -280,30 +284,30 @@ export default function Revenue() {
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth label="Data" type="date" value={form.date}
+                fullWidth label={t('common.date')} type="date" value={form.date}
                 onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
                 InputLabelProps={{ shrink: true }}
               />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth label="Valor (R$)" type="number" value={form.amount}
+                fullWidth label={t('revenue.amount')} type="number" value={form.amount}
                 onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
                 inputProps={{ min: 0, step: 0.01 }}
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
-                fullWidth label="Observações" multiline rows={2} value={form.notes}
+                fullWidth label={t('common.notes')} multiline rows={2} value={form.notes}
                 onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
               />
             </Grid>
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeDialog} disabled={saving}>Cancelar</Button>
+          <Button onClick={closeDialog} disabled={saving}>{t('common.cancel')}</Button>
           <Button variant="contained" onClick={handleSave} disabled={saving} startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}>
-            {saving ? 'Salvando...' : 'Salvar'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </DialogActions>
       </Dialog>

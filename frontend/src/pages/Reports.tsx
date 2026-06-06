@@ -23,6 +23,7 @@ import {
 } from 'recharts';
 import { BarChart3, Fuel, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import { useSnackbar } from 'notistack';
+import { useTranslation } from 'react-i18next';
 import { vehiclesApi, Vehicle } from '../api/vehicles.api';
 import { maintenanceApi, MaintenanceRecord } from '../api/maintenance.api';
 import { fuelApi, FuelRecord, FuelType, fuelTypeInfo } from '../api/fuel.api';
@@ -30,14 +31,14 @@ import { revenueApi, RevenueRecord } from '../api/revenue.api';
 import StatCard from '../components/StatCard';
 
 const PERIODS = [
-  { key: '30d', label: 'Últimos 30 dias', days: 30 },
-  { key: '3m', label: 'Últimos 3 meses', days: 90 },
-  { key: '6m', label: 'Últimos 6 meses', days: 180 },
-  { key: '12m', label: 'Últimos 12 meses', days: 365 },
-  { key: 'all', label: 'Todo o período', days: 0 },
+  { key: '30d', days: 30 },
+  { key: '3m', days: 90 },
+  { key: '6m', days: 180 },
+  { key: '12m', days: 365 },
+  { key: 'all', days: 0 },
 ];
 
-const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+const brl = (v: number, locale = 'pt-BR') => `R$ ${v.toLocaleString(locale, { minimumFractionDigits: 2 })}`;
 const monthKey = (d: string) => d.slice(0, 7); // YYYY-MM
 const monthLabel = (key: string) => {
   const [y, m] = key.split('-');
@@ -71,6 +72,10 @@ function avgConsumption(records: FuelRecord[]): { value: number; label: string }
 
 export default function Reports() {
   const theme = useTheme();
+  const { t, i18n } = useTranslation();
+  const isPt = i18n.language?.startsWith('pt');
+  const numLocale = isPt ? 'pt-BR' : 'en-US';
+  const money = (v: number) => brl(v, numLocale);
   const { enqueueSnackbar } = useSnackbar();
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -94,7 +99,7 @@ export default function Reports() {
   useEffect(() => {
     vehiclesApi.getMyVehicles()
       .then(setVehicles)
-      .catch(() => enqueueSnackbar('Erro ao carregar veículos.', { variant: 'error' }));
+      .catch(() => enqueueSnackbar(t('common.loadDataError'), { variant: 'error' }));
   }, []);
 
   const loadData = useCallback(async () => {
@@ -111,11 +116,11 @@ export default function Reports() {
       setFuel(f);
       setRevenue(r);
     } catch {
-      enqueueSnackbar('Erro ao carregar dados dos relatórios.', { variant: 'error' });
+      enqueueSnackbar(t('reports.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
     }
-  }, [vehicles, vehicleId]);
+  }, [vehicles, vehicleId, t]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -157,8 +162,8 @@ export default function Reports() {
 
   // Despesas por categoria (pizza)
   const expenseByCategory = [
-    { name: 'Combustível', value: Number(fuelCost.toFixed(2)) },
-    { name: 'Manutenção', value: Number(maintCost.toFixed(2)) },
+    { name: t('reports.fuel'), value: Number(fuelCost.toFixed(2)) },
+    { name: t('reports.maintenance'), value: Number(maintCost.toFixed(2)) },
   ].filter((x) => x.value > 0);
 
   // Receitas por categoria
@@ -184,81 +189,81 @@ export default function Reports() {
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
         <BarChart3 size={24} />
-        <Typography variant="h5" fontWeight={700}>Relatórios</Typography>
+        <Typography variant="h5" fontWeight={700}>{t('reports.title')}</Typography>
       </Stack>
 
       {/* Filtros */}
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ py: '12px !important' }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <TextField select label="Veículo" size="small" value={vehicleId}
+            <TextField select label={t('common.vehicle')} size="small" value={vehicleId}
               onChange={(e) => setVehicleId(e.target.value)} sx={{ width: { xs: '100%', sm: 320 } }}>
-              <MenuItem value="all">Todos os veículos</MenuItem>
+              <MenuItem value="all">{t('reports.allVehicles')}</MenuItem>
               {vehicles.map((v) => (
                 <MenuItem key={v.id} value={v.id}>{v.brand?.name} {v.model?.name} · {v.plate}</MenuItem>
               ))}
             </TextField>
-            <TextField select label="Período" size="small" value={period}
+            <TextField select label={t('reports.period')} size="small" value={period}
               onChange={(e) => setPeriod(e.target.value)} sx={{ width: { xs: '100%', sm: 220 } }}>
-              {PERIODS.map((p) => <MenuItem key={p.key} value={p.key}>{p.label}</MenuItem>)}
+              {PERIODS.map((p) => <MenuItem key={p.key} value={p.key}>{t(`reports.periods.${p.key}`)}</MenuItem>)}
             </TextField>
           </Stack>
         </CardContent>
       </Card>
 
       <Tabs value={tab} onChange={(_e, v) => setTab(v)} sx={{ mb: 3 }} variant="scrollable" scrollButtons="auto">
-        <Tab label="Geral" />
-        <Tab label="Abastecimento" />
-        <Tab label="Despesas" />
-        <Tab label="Receitas" />
+        <Tab label={t('reports.tabs.general')} />
+        <Tab label={t('reports.tabs.fueling')} />
+        <Tab label={t('reports.tabs.expenses')} />
+        <Tab label={t('reports.tabs.revenue')} />
       </Tabs>
 
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 6 }}><CircularProgress /></Box>
       ) : vehicles.length === 0 ? (
-        <Card><CardContent><Typography color="text.secondary">Cadastre um veículo para ver os relatórios.</Typography></CardContent></Card>
+        <Card><CardContent><Typography color="text.secondary">{t('reports.needVehicle')}</Typography></CardContent></Card>
       ) : noData ? (
-        <Card><CardContent><Typography color="text.secondary">Sem dados no período selecionado.</Typography></CardContent></Card>
+        <Card><CardContent><Typography color="text.secondary">{t('reports.noData')}</Typography></CardContent></Card>
       ) : (
         <>
           {/* ABA GERAL */}
           {tab === 0 && (
             <Grid container spacing={3}>
               <Grid item xs={12} sm={4}>
-                <StatCard icon={TrendingDown} title="Despesa total" value={brl(expenseTotal)} subtitle="Combustível + manutenção" color={C.error} />
+                <StatCard icon={TrendingDown} title={t('reports.totalExpense')} value={money(expenseTotal)} subtitle={t('reports.totalExpenseSub')} color={C.error} />
               </Grid>
               <Grid item xs={12} sm={4}>
-                <StatCard icon={TrendingUp} title="Receita total" value={brl(revTotal)} subtitle="Renda no período" color={C.success} />
+                <StatCard icon={TrendingUp} title={t('reports.totalRevenue')} value={money(revTotal)} subtitle={t('reports.totalRevenueSub')} color={C.success} />
               </Grid>
               <Grid item xs={12} sm={4}>
-                <StatCard icon={Wallet} title="Saldo" value={brl(balance)} subtitle={balance >= 0 ? 'Lucro' : 'Prejuízo'} color={balance >= 0 ? C.success : C.error} />
+                <StatCard icon={Wallet} title={t('reports.balance')} value={money(balance)} subtitle={balance >= 0 ? t('reports.profit') : t('reports.loss')} color={balance >= 0 ? C.success : C.error} />
               </Grid>
 
               <Grid item xs={12} md={8}>
                 <Card><CardContent>
-                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Receitas × Despesas por mês</Typography>
+                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>{t('reports.revVsExp')}</Typography>
                   <ResponsiveContainer width="100%" height={300}>
                     <LineChart data={monthly}>
                       <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                       <XAxis dataKey="mes" stroke={theme.palette.text.secondary} fontSize={12} />
                       <YAxis stroke={theme.palette.text.secondary} fontSize={12} />
-                      <Tooltip formatter={(v: number) => brl(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
+                      <Tooltip formatter={(v: number) => money(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
                       <Legend />
-                      <Line type="monotone" dataKey="receita" name="Receita" stroke={C.success} strokeWidth={2} />
-                      <Line type="monotone" dataKey="despesa" name="Despesa" stroke={C.error} strokeWidth={2} />
+                      <Line type="monotone" dataKey="receita" name={t('reports.revenueLabel')} stroke={C.success} strokeWidth={2} />
+                      <Line type="monotone" dataKey="despesa" name={t('reports.expense')} stroke={C.error} strokeWidth={2} />
                     </LineChart>
                   </ResponsiveContainer>
                 </CardContent></Card>
               </Grid>
               <Grid item xs={12} md={4}>
                 <Card><CardContent>
-                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Distribuição de despesas</Typography>
+                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>{t('reports.expenseDistribution')}</Typography>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie data={expenseByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
                         {expenseByCategory.map((_e, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Pie>
-                      <Tooltip formatter={(v: number) => brl(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
+                      <Tooltip formatter={(v: number) => money(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>
@@ -271,27 +276,27 @@ export default function Reports() {
           {tab === 1 && (
             <Grid container spacing={3}>
               <Grid item xs={12} sm={6} md={3}>
-                <StatCard icon={Fuel} title="Consumo médio" value={consumption ? `${consumption.value.toFixed(1)} ${consumption.label}` : '—'} subtitle="Entre tanques cheios" color={C.primary} />
+                <StatCard icon={Fuel} title={t('reports.avgConsumption')} value={consumption ? `${consumption.value.toFixed(1)} ${consumption.label}` : '—'} subtitle={t('reports.betweenFullTanks')} color={C.primary} />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <StatCard icon={Wallet} title="Custo por km" value={distance > 0 ? brl(costPerKm) : '—'} subtitle={`${distance.toLocaleString('pt-BR')} km rodados`} color={C.warning} />
+                <StatCard icon={Wallet} title={t('reports.costPerKm')} value={distance > 0 ? money(costPerKm) : '—'} subtitle={t('reports.kmDriven', { km: distance.toLocaleString(numLocale) })} color={C.warning} />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <StatCard icon={TrendingDown} title="Preço médio" value={avgPrice > 0 ? brl(avgPrice) : '—'} subtitle="Por unidade" color={C.info} />
+                <StatCard icon={TrendingDown} title={t('reports.avgPrice')} value={avgPrice > 0 ? money(avgPrice) : '—'} subtitle={t('reports.perUnit')} color={C.info} />
               </Grid>
               <Grid item xs={12} sm={6} md={3}>
-                <StatCard icon={Fuel} title="Total gasto" value={brl(fuelCost)} subtitle="Combustível no período" color={C.error} />
+                <StatCard icon={Fuel} title={t('reports.totalSpent')} value={money(fuelCost)} subtitle={t('reports.fuelInPeriod')} color={C.error} />
               </Grid>
               <Grid item xs={12}>
                 <Card><CardContent>
-                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Gasto com combustível por mês</Typography>
+                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>{t('reports.fuelByMonth')}</Typography>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={monthly}>
                       <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                       <XAxis dataKey="mes" stroke={theme.palette.text.secondary} fontSize={12} />
                       <YAxis stroke={theme.palette.text.secondary} fontSize={12} />
-                      <Tooltip formatter={(v: number) => brl(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
-                      <Bar dataKey="combustivel" name="Combustível" fill={C.primary} radius={[4, 4, 0, 0]} />
+                      <Tooltip formatter={(v: number) => money(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
+                      <Bar dataKey="combustivel" name={t('reports.fuel')} fill={C.primary} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent></Card>
@@ -303,26 +308,26 @@ export default function Reports() {
           {tab === 2 && (
             <Grid container spacing={3}>
               <Grid item xs={12} sm={4}>
-                <StatCard icon={Fuel} title="Combustível" value={brl(fuelCost)} color={C.primary} />
+                <StatCard icon={Fuel} title={t('reports.fuel')} value={money(fuelCost)} color={C.primary} />
               </Grid>
               <Grid item xs={12} sm={4}>
-                <StatCard icon={BarChart3} title="Manutenção" value={brl(maintCost)} color={C.warning} />
+                <StatCard icon={BarChart3} title={t('reports.maintenance')} value={money(maintCost)} color={C.warning} />
               </Grid>
               <Grid item xs={12} sm={4}>
-                <StatCard icon={TrendingDown} title="Total" value={brl(expenseTotal)} color={C.error} />
+                <StatCard icon={TrendingDown} title={t('reports.total')} value={money(expenseTotal)} color={C.error} />
               </Grid>
               <Grid item xs={12}>
                 <Card><CardContent>
-                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Despesas por mês</Typography>
+                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>{t('reports.expensesByMonth')}</Typography>
                   <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={monthly}>
                       <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                       <XAxis dataKey="mes" stroke={theme.palette.text.secondary} fontSize={12} />
                       <YAxis stroke={theme.palette.text.secondary} fontSize={12} />
-                      <Tooltip formatter={(v: number) => brl(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
+                      <Tooltip formatter={(v: number) => money(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
                       <Legend />
-                      <Bar dataKey="combustivel" name="Combustível" stackId="a" fill={C.primary} />
-                      <Bar dataKey="manutencao" name="Manutenção" stackId="a" fill={C.warning} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="combustivel" name={t('reports.fuel')} stackId="a" fill={C.primary} />
+                      <Bar dataKey="manutencao" name={t('reports.maintenance')} stackId="a" fill={C.warning} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent></Card>
@@ -334,34 +339,34 @@ export default function Reports() {
           {tab === 3 && (
             <Grid container spacing={3}>
               <Grid item xs={12} sm={6}>
-                <StatCard icon={TrendingUp} title="Receita total" value={brl(revTotal)} subtitle={`${fRev.length} lançamento(s)`} color={C.success} />
+                <StatCard icon={TrendingUp} title={t('reports.totalRevenue')} value={money(revTotal)} subtitle={t('reports.revenue', { count: fRev.length })} color={C.success} />
               </Grid>
               <Grid item xs={12} sm={6}>
-                <StatCard icon={Wallet} title="Saldo" value={brl(balance)} subtitle={balance >= 0 ? 'Lucro' : 'Prejuízo'} color={balance >= 0 ? C.success : C.error} />
+                <StatCard icon={Wallet} title={t('reports.balance')} value={money(balance)} subtitle={balance >= 0 ? t('reports.profit') : t('reports.loss')} color={balance >= 0 ? C.success : C.error} />
               </Grid>
               <Grid item xs={12} md={7}>
                 <Card><CardContent>
-                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Receitas por mês</Typography>
+                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>{t('reports.revenueByMonth')}</Typography>
                   <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={monthly}>
                       <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
                       <XAxis dataKey="mes" stroke={theme.palette.text.secondary} fontSize={12} />
                       <YAxis stroke={theme.palette.text.secondary} fontSize={12} />
-                      <Tooltip formatter={(v: number) => brl(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
-                      <Bar dataKey="receita" name="Receita" fill={C.success} radius={[4, 4, 0, 0]} />
+                      <Tooltip formatter={(v: number) => money(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
+                      <Bar dataKey="receita" name={t('reports.revenueLabel')} fill={C.success} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent></Card>
               </Grid>
               <Grid item xs={12} md={5}>
                 <Card><CardContent>
-                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Por categoria</Typography>
+                  <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>{t('reports.byCategory')}</Typography>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
                       <Pie data={revByCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
                         {revByCategory.map((_e, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                       </Pie>
-                      <Tooltip formatter={(v: number) => brl(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
+                      <Tooltip formatter={(v: number) => money(v)} contentStyle={{ backgroundColor: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}` }} />
                       <Legend />
                     </PieChart>
                   </ResponsiveContainer>

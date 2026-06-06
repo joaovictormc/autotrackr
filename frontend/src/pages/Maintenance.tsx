@@ -26,6 +26,7 @@ import {
 import { DataGrid, GridColDef, GridRenderCellParams, ptBR } from '@mui/x-data-grid';
 import { CheckCircle2, Circle, Edit, Plus, RefreshCw, Trash2, Wrench } from 'lucide-react';
 import { useSnackbar } from 'notistack';
+import { useTranslation } from 'react-i18next';
 import { vehiclesApi, Vehicle } from '../api/vehicles.api';
 import { maintenanceApi, MaintenanceRecord, MaintenanceType, CreateMaintenancePayload } from '../api/maintenance.api';
 
@@ -61,6 +62,9 @@ const EMPTY_FORM: FormState = {
 
 export default function Maintenance() {
   const { enqueueSnackbar } = useSnackbar();
+  const { t, i18n } = useTranslation();
+  const isPt = i18n.language?.startsWith('pt');
+  const numLocale = isPt ? 'pt-BR' : 'en-US';
   const theme = useTheme();
   const fullScreenDialog = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -87,7 +91,7 @@ export default function Maintenance() {
       setTypes(tList);
       if (vList.length > 0) setSelectedVehicleId(vList[0].id);
     }).catch(() => {
-      enqueueSnackbar('Erro ao carregar dados.', { variant: 'error' });
+      enqueueSnackbar(t('common.loadDataError'), { variant: 'error' });
     }).finally(() => setLoadingVehicles(false));
   }, []);
 
@@ -98,11 +102,11 @@ export default function Maintenance() {
       const data = await maintenanceApi.getRecords(vehicleId);
       setRecords(data);
     } catch {
-      enqueueSnackbar('Erro ao carregar registros.', { variant: 'error' });
+      enqueueSnackbar(t('common.loadRecordsError'), { variant: 'error' });
     } finally {
       setLoadingRecords(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchRecords(selectedVehicleId);
@@ -145,7 +149,7 @@ export default function Maintenance() {
 
   // Calcula o km do próximo lembrete: km atual + intervalo padrão do tipo
   const computeReminder = (mileageStr: string, typeId: string): string => {
-    const type = types.find((t) => t.id === typeId);
+    const type = types.find((mt) => mt.id === typeId);
     const interval = type?.defaultIntervalKm;
     const base = parseInt(mileageStr, 10);
     if (!interval || isNaN(base)) return '';
@@ -154,7 +158,7 @@ export default function Maintenance() {
 
   // Calcula a data do próximo lembrete: data da manutenção + intervalo em meses
   const computeReminderDate = (dateStr: string, typeId: string): string => {
-    const type = types.find((t) => t.id === typeId);
+    const type = types.find((mt) => mt.id === typeId);
     const months = type?.defaultIntervalMonths;
     if (!months || !dateStr) return '';
     const d = new Date(`${dateStr}T00:00:00`);
@@ -164,11 +168,11 @@ export default function Maintenance() {
 
   const handleSave = async () => {
     if (!form.maintenanceTypeId && !form.newTypeName.trim()) {
-      setFormError('Selecione ou informe um tipo de manutenção.');
+      setFormError(t('maintenance.errType'));
       return;
     }
-    if (!form.date) { setFormError('Informe a data.'); return; }
-    if (!form.mileage || isNaN(parseInt(form.mileage, 10))) { setFormError('Informe a quilometragem.'); return; }
+    if (!form.date) { setFormError(t('maintenance.errDate')); return; }
+    if (!form.mileage || isNaN(parseInt(form.mileage, 10))) { setFormError(t('maintenance.errMileage')); return; }
 
     setSaving(true);
     setFormError('');
@@ -196,30 +200,30 @@ export default function Maintenance() {
 
       if (editingRecord) {
         await maintenanceApi.updateRecord(selectedVehicleId, editingRecord.id, payload);
-        enqueueSnackbar('Registro atualizado!', { variant: 'success' });
+        enqueueSnackbar(t('maintenance.saved'), { variant: 'success' });
       } else {
         await maintenanceApi.createRecord(selectedVehicleId, payload);
-        enqueueSnackbar('Manutenção registrada!', { variant: 'success' });
+        enqueueSnackbar(t('maintenance.created'), { variant: 'success' });
       }
 
       closeDialog();
       fetchRecords(selectedVehicleId);
     } catch (err: any) {
       const msg = err.response?.data?.message;
-      setFormError(Array.isArray(msg) ? msg.join(' | ') : msg || 'Erro ao salvar.');
+      setFormError(Array.isArray(msg) ? msg.join(' | ') : msg || t('common.saveError'));
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('Remover este registro de manutenção? Ação irreversível.')) return;
+    if (!window.confirm(t('maintenance.confirmDelete'))) return;
     try {
       await maintenanceApi.deleteRecord(selectedVehicleId, id);
       setRecords((prev) => prev.filter((r) => r.id !== id));
-      enqueueSnackbar('Registro removido.', { variant: 'success' });
+      enqueueSnackbar(t('maintenance.removed'), { variant: 'success' });
     } catch {
-      enqueueSnackbar('Erro ao remover registro.', { variant: 'error' });
+      enqueueSnackbar(t('common.removeError'), { variant: 'error' });
     }
   };
 
@@ -230,7 +234,7 @@ export default function Maintenance() {
       });
       setRecords((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     } catch {
-      enqueueSnackbar('Erro ao atualizar status.', { variant: 'error' });
+      enqueueSnackbar(t('common.statusError'), { variant: 'error' });
     }
   };
 
@@ -238,46 +242,46 @@ export default function Maintenance() {
 
   const columns: GridColDef[] = [
     {
-      field: 'type', headerName: 'Tipo', flex: 1.2,
+      field: 'type', headerName: t('maintenance.col.type'), flex: 1.2,
       valueGetter: (params: { row: MaintenanceRecord }) => params.row.maintenanceType?.name ?? '—',
     },
     {
-      field: 'date', headerName: 'Data', flex: 0.9,
+      field: 'date', headerName: t('maintenance.col.date'), flex: 0.9,
       valueFormatter: (params: { value: string }) => {
         if (!params.value) return '—';
         const [y, m, d] = params.value.slice(0, 10).split('-');
-        return `${d}/${m}/${y}`;
+        return isPt ? `${d}/${m}/${y}` : `${m}/${d}/${y}`;
       },
     },
     {
-      field: 'mileage', headerName: 'Km', flex: 0.8, type: 'number',
-      valueFormatter: (params: { value: number }) => `${params.value.toLocaleString('pt-BR')} km`,
+      field: 'mileage', headerName: t('maintenance.col.km'), flex: 0.8, type: 'number',
+      valueFormatter: (params: { value: number }) => `${params.value.toLocaleString(numLocale)} km`,
     },
     {
-      field: 'cost', headerName: 'Custo', flex: 0.8,
+      field: 'cost', headerName: t('maintenance.col.cost'), flex: 0.8,
       valueFormatter: (params: { value: string | null }) =>
-        params.value ? `R$ ${parseFloat(params.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '—',
+        params.value ? `R$ ${parseFloat(params.value).toLocaleString(numLocale, { minimumFractionDigits: 2 })}` : '—',
     },
     {
-      field: 'location', headerName: 'Local', flex: 1,
+      field: 'location', headerName: t('maintenance.col.location'), flex: 1,
       valueFormatter: (params: { value: string | null }) => params.value ?? '—',
     },
     {
-      field: 'isCompleted', headerName: 'Status', width: 130,
+      field: 'isCompleted', headerName: t('maintenance.col.status'), width: 130,
       renderCell: (params: GridRenderCellParams<MaintenanceRecord>) => (
         <Chip
           size="small"
-          label={params.row.isCompleted ? 'Concluído' : 'Pendente'}
+          label={params.row.isCompleted ? t('maintenance.status.completed') : t('maintenance.status.pending')}
           color={params.row.isCompleted ? 'success' : 'warning'}
           variant="outlined"
         />
       ),
     },
     {
-      field: 'actions', headerName: 'Ações', width: 120, sortable: false, disableColumnMenu: true,
+      field: 'actions', headerName: t('common.actions'), width: 120, sortable: false, disableColumnMenu: true,
       renderCell: (params: GridRenderCellParams<MaintenanceRecord>) => (
         <Stack direction="row" spacing={0.5} alignItems="center" sx={{ height: '100%' }}>
-          <Tooltip title={params.row.isCompleted ? 'Marcar como pendente' : 'Marcar como concluído'}>
+          <Tooltip title={params.row.isCompleted ? t('maintenance.markPending') : t('maintenance.markCompleted')}>
             <IconButton size="small" onClick={() => handleToggleComplete(params.row as MaintenanceRecord)}
               sx={{ color: params.row.isCompleted ? 'success.main' : 'text.secondary' }}>
               {params.row.isCompleted ? <CheckCircle2 size={16} /> : <Circle size={16} />}
@@ -297,7 +301,7 @@ export default function Maintenance() {
   ];
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId);
-  const selectedType = types.find((t) => t.id === form.maintenanceTypeId);
+  const selectedType = types.find((mt) => mt.id === form.maintenanceTypeId);
   const selectedTypeInterval = selectedType?.defaultIntervalKm ?? null;
   const selectedTypeMonths = selectedType?.defaultIntervalMonths ?? null;
 
@@ -306,7 +310,7 @@ export default function Maintenance() {
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} spacing={2} sx={{ mb: 3 }}>
         <Stack direction="row" spacing={1.5} alignItems="center">
           <Wrench size={24} />
-          <Typography variant="h5" fontWeight={700}>Manutenções</Typography>
+          <Typography variant="h5" fontWeight={700}>{t('maintenance.title')}</Typography>
         </Stack>
         <Button
           variant="contained"
@@ -314,7 +318,7 @@ export default function Maintenance() {
           onClick={() => openDialog()}
           disabled={!selectedVehicleId || loadingVehicles}
         >
-          Adicionar Manutenção
+          {t('maintenance.add')}
         </Button>
       </Stack>
 
@@ -324,11 +328,11 @@ export default function Maintenance() {
           {loadingVehicles ? (
             <CircularProgress size={24} />
           ) : vehicles.length === 0 ? (
-            <Alert severity="info">Nenhum veículo cadastrado. Adicione um veículo no Dashboard primeiro.</Alert>
+            <Alert severity="info">{t('common.noVehicles')}</Alert>
           ) : (
             <TextField
               select
-              label="Veículo"
+              label={t('common.vehicle')}
               value={selectedVehicleId}
               onChange={(e) => setSelectedVehicleId(e.target.value)}
               size="small"
@@ -349,7 +353,7 @@ export default function Maintenance() {
         <CardContent>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
             <Typography variant="h6" fontWeight={600}>
-              Histórico
+              {t('maintenance.history')}
               {selectedVehicle && (
                 <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
                   — {selectedVehicle.brand?.name} {selectedVehicle.model?.name} · {selectedVehicle.plate}
@@ -362,14 +366,14 @@ export default function Maintenance() {
           </Box>
 
           {!selectedVehicleId ? (
-            <Alert severity="info">Selecione um veículo para ver o histórico de manutenções.</Alert>
+            <Alert severity="info">{t('maintenance.selectToView')}</Alert>
           ) : loadingRecords ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
               <CircularProgress />
             </Box>
           ) : records.length === 0 ? (
             <Alert severity="info">
-              Nenhuma manutenção registrada para este veículo. Clique em "Adicionar Manutenção" para começar.
+              {t('maintenance.empty')}
             </Alert>
           ) : (
             <Box sx={{ height: 450 }}>
@@ -379,7 +383,7 @@ export default function Maintenance() {
                 initialState={{ pagination: { paginationModel: { page: 0, pageSize: 10 } } }}
                 pageSizeOptions={[10, 25]}
                 disableRowSelectionOnClick
-                localeText={ptBR.components.MuiDataGrid.defaultProps.localeText}
+                localeText={isPt ? ptBR.components.MuiDataGrid.defaultProps.localeText : undefined}
               />
             </Box>
           )}
@@ -388,7 +392,7 @@ export default function Maintenance() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="sm" fullScreen={fullScreenDialog}>
-        <DialogTitle>{editingRecord ? 'Editar Manutenção' : 'Nova Manutenção'}</DialogTitle>
+        <DialogTitle>{editingRecord ? t('maintenance.editTitle') : t('maintenance.newTitle')}</DialogTitle>
         <DialogContent>
           {formError && <Alert severity="error" sx={{ mb: 2 }}>{formError}</Alert>}
           <Grid container spacing={2} sx={{ mt: 0.5 }}>
@@ -398,7 +402,7 @@ export default function Maintenance() {
                 freeSolo
                 options={types}
                 getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name)}
-                value={types.find((t) => t.id === form.maintenanceTypeId) ?? form.newTypeName}
+                value={types.find((mt) => mt.id === form.maintenanceTypeId) ?? form.newTypeName}
                 onChange={(_e, val) => {
                   if (!val) {
                     setForm((p) => ({ ...p, maintenanceTypeId: '', newTypeName: '' }));
@@ -419,7 +423,7 @@ export default function Maintenance() {
                   if (reason === 'input') setForm((p) => ({ ...p, maintenanceTypeId: '', newTypeName: val }));
                 }}
                 renderInput={(params) => (
-                  <TextField {...params} label="Tipo de Manutenção *" helperText="Selecione da lista ou digite para criar novo tipo" />
+                  <TextField {...params} label={`${t('maintenance.type')} *`} helperText={t('maintenance.typeHelp')} />
                 )}
               />
             </Grid>
@@ -427,7 +431,7 @@ export default function Maintenance() {
             {/* Data */}
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth label="Data *" type="date" value={form.date}
+                fullWidth label={`${t('common.date')} *`} type="date" value={form.date}
                 onChange={(e) => setForm((p) => ({
                   ...p,
                   date: e.target.value,
@@ -440,7 +444,7 @@ export default function Maintenance() {
             {/* Km */}
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth label="Quilometragem *" type="number" value={form.mileage}
+                fullWidth label={`${t('maintenance.mileage')} *`} type="number" value={form.mileage}
                 onChange={(e) => setForm((p) => ({
                   ...p,
                   mileage: e.target.value,
@@ -453,7 +457,7 @@ export default function Maintenance() {
             {/* Custo */}
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth label="Custo (R$)" type="number" value={form.cost}
+                fullWidth label={t('maintenance.cost')} type="number" value={form.cost}
                 onChange={(e) => setForm((p) => ({ ...p, cost: e.target.value }))}
                 inputProps={{ min: 0, step: 0.01 }}
               />
@@ -462,7 +466,7 @@ export default function Maintenance() {
             {/* Local */}
             <Grid item xs={12} sm={6}>
               <TextField
-                fullWidth label="Local / Oficina" value={form.location}
+                fullWidth label={t('maintenance.location')} value={form.location}
                 onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
               />
             </Grid>
@@ -470,7 +474,7 @@ export default function Maintenance() {
             {/* Notas */}
             <Grid item xs={12}>
               <TextField
-                fullWidth label="Observações" multiline rows={2} value={form.notes}
+                fullWidth label={t('common.notes')} multiline rows={2} value={form.notes}
                 onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
               />
             </Grid>
@@ -479,14 +483,21 @@ export default function Maintenance() {
             <Grid item xs={12}>
               <Typography variant="caption" color="text.secondary">
                 {selectedTypeInterval || selectedTypeMonths
-                  ? `Próxima manutenção recomendada${selectedTypeInterval ? `: a cada ${selectedTypeInterval.toLocaleString('pt-BR')} km` : ''}${selectedTypeMonths ? `${selectedTypeInterval ? ' ou' : ':'} ${selectedTypeMonths} ${selectedTypeMonths === 1 ? 'mês' : 'meses'}` : ''} (o que vier primeiro). Ajuste se necessário.`
-                  : 'Selecione um tipo com intervalo padrão para sugerir os lembretes automaticamente.'}
+                  ? t('maintenance.recommendation', {
+                      km: selectedTypeInterval ? t('maintenance.recommendationKm', { km: selectedTypeInterval.toLocaleString(numLocale) }) : '',
+                      months: selectedTypeMonths
+                        ? (selectedTypeInterval
+                            ? t('maintenance.recommendationMonthsAlt', { months: selectedTypeMonths })
+                            : t('maintenance.recommendationMonths', { months: selectedTypeMonths }))
+                        : '',
+                    })
+                  : t('maintenance.selectTypeFirst')}
               </Typography>
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Próxima manutenção (km)"
+                label={t('maintenance.nextTitle')}
                 type="number"
                 value={form.reminderMileage}
                 onChange={(e) => setForm((p) => ({ ...p, reminderMileage: e.target.value, reminderKmTouched: true }))}
@@ -496,7 +507,7 @@ export default function Maintenance() {
             <Grid item xs={12} sm={6}>
               <TextField
                 fullWidth
-                label="Próxima manutenção (data)"
+                label={t('maintenance.nextDate')}
                 type="date"
                 value={form.reminderDate}
                 onChange={(e) => setForm((p) => ({ ...p, reminderDate: e.target.value, reminderDateTouched: true }))}
@@ -506,14 +517,14 @@ export default function Maintenance() {
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeDialog} disabled={saving}>Cancelar</Button>
+          <Button onClick={closeDialog} disabled={saving}>{t('common.cancel')}</Button>
           <Button
             variant="contained"
             onClick={handleSave}
             disabled={saving}
             startIcon={saving ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
-            {saving ? 'Salvando...' : 'Salvar'}
+            {saving ? t('common.saving') : t('common.save')}
           </Button>
         </DialogActions>
       </Dialog>

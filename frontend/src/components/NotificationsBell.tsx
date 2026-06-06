@@ -57,8 +57,8 @@ export default function NotificationsBell() {
             result.push({
               id: r.id,
               vehicleLabel: label,
-              typeName: r.maintenanceType?.name ?? 'Manutenção',
-              reason: dateAlert ? 'Vencida por data' : 'Vencida por quilometragem',
+              typeName: r.maintenanceType?.name ?? t('notifications.maintenanceFallback'),
+              reason: dateAlert ? 'date' : 'km',
             });
           }
         });
@@ -68,7 +68,7 @@ export default function NotificationsBell() {
     } catch {
       setAlerts([]);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     computeAlerts();
@@ -113,12 +113,12 @@ export default function NotificationsBell() {
       >
         <Box sx={{ px: 2, py: 1.5 }}>
           <Typography variant="subtitle1" fontWeight={700}>
-            Notificações
+            {t('notifications.title')}
           </Typography>
           <Typography variant="caption" color="text.secondary">
             {alerts.length === 0
-              ? 'Nenhuma manutenção vencida'
-              : `${alerts.length} manutenção${alerts.length !== 1 ? 'ões' : ''} vencida${alerts.length !== 1 ? 's' : ''}`}
+              ? t('notifications.none')
+              : t('notifications.count', { count: alerts.length })}
           </Typography>
         </Box>
         <Divider />
@@ -126,14 +126,14 @@ export default function NotificationsBell() {
         {alerts.length === 0 ? (
           <MenuItem disabled sx={{ py: 2, justifyContent: 'center' }}>
             <Typography variant="body2" color="text.secondary">
-              Tudo em dia! 🎉
+              {t('notifications.allGood')}
             </Typography>
           </MenuItem>
         ) : (
           alerts.slice(0, 20).map((a) => (
             <MenuItem key={a.id} onClick={goToMaintenance} sx={{ py: 1.2, whiteSpace: 'normal' }}>
               <ListItemText
-                primary={`${a.typeName} — ${a.reason}`}
+                primary={`${a.typeName} — ${t(a.reason === 'date' ? 'notifications.overdueByDate' : 'notifications.overdueByKm')}`}
                 secondary={a.vehicleLabel}
                 primaryTypographyProps={{ fontSize: 14, fontWeight: 600 }}
                 secondaryTypographyProps={{ fontSize: 12 }}
