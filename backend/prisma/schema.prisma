@@ -1,0 +1,345 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  OPERADOR
+  ADMIN
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+model User {
+  id             String         @id @default(uuid())
+  email          String         @unique
+  hashedPassword String?        @map("hashed_password")
+  name           String?
+  phone          String?
+  role           Role           @default(USER)
+  plan           Plan           @default(FREE)
+  proSince       DateTime?      @map("pro_since")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  vehicles       Vehicle[]
+  refreshTokens  RefreshToken[]
+  subscriptions  Subscription[]
+  reminderLogs   ReminderLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  email     String
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("password_reset_tokens")
+}
+
+model Brand {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  apiCode   String?   @map("api_code")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  models    Model[]
+  vehicles  Vehicle[]
+
+  @@map("brands")
+}
+
+model Model {
+  id        String    @id @default(uuid())
+  brandId   String    @map("brand_id")
+  brand     Brand     @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  name      String
+  apiCode   String?   @map("api_code")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  vehicles  Vehicle[]
+
+  @@unique([brandId, name])
+  @@map("models")
+}
+
+model Vehicle {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId     String    @map("brand_id")
+  brand       Brand     @relation(fields: [brandId], references: [id])
+  modelId     String    @map("model_id")
+  model       Model     @relation(fields: [modelId], references: [id])
+  plate       String    @unique
+  year        Int
+  mileage     Int       @default(0)
+  color       String?
+  vin         String?
+  details     String?
+  apiYearCode String?   @map("api_year_code")
+  isFavorite  Boolean   @default(false) @map("is_favorite")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  maintenanceRecords MaintenanceRecord[]
+  fuelRecords        FuelRecord[]
+  revenueRecords     RevenueRecord[]
+  trips              Trip[]
+
+  @@map("vehicles")
+}
+
+enum FuelType {
+  GASOLINA
+  GASOLINA_ADITIVADA
+  GASOLINA_PODIUM
+  ETANOL
+  DIESEL
+  GNV
+  ELETRICO
+}
+
+enum TripPurpose {
+  WORK
+  PERSONAL
+  BUSINESS
+  OTHER
+}
+
+model FuelRecord {
+  id           String   @id @default(uuid())
+  vehicleId    String   @map("vehicle_id")
+  vehicle      Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  date         DateTime @db.Date
+  fuelType     FuelType @map("fuel_type")
+  mileage      Int
+  quantity     Decimal  @db.Decimal(8, 2)
+  pricePerUnit Decimal  @db.Decimal(8, 3) @map("price_per_unit")
+  totalCost    Decimal  @db.Decimal(10, 2) @map("total_cost")
+  fullTank     Boolean  @default(true) @map("full_tank")
+  station      String?
+  latitude     Float?
+  longitude    Float?
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@map("fuel_records")
+}
+
+model RevenueRecord {
+  id        String   @id @default(uuid())
+  vehicleId String   @map("vehicle_id")
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  category  String
+  amount    Decimal  @db.Decimal(10, 2)
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@map("revenue_records")
+}
+
+model Trip {
+  id           String      @id @default(uuid())
+  vehicleId    String      @map("vehicle_id")
+  vehicle      Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  date         DateTime    @db.Date
+  origin       String
+  destination  String
+  distanceKm   Int         @map("distance_km")
+  mileageStart Int?        @map("mileage_start")
+  mileageEnd   Int?        @map("mileage_end")
+  durationMin  Int?        @map("duration_min")
+  purpose      TripPurpose @default(PERSONAL)
+  passengers   Int?
+  notes        String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@map("trips")
+}
+
+model MaintenanceType {
+  id                    String              @id @default(uuid())
+  name                  String              @unique
+  description           String?
+  defaultIntervalKm     Int?                @map("default_interval_km")
+  defaultIntervalMonths Int?                @map("default_interval_months")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  records               MaintenanceRecord[]
+
+  @@map("maintenance_types")
+}
+
+model MaintenanceRecord {
+  id                String          @id @default(uuid())
+  vehicleId         String          @map("vehicle_id")
+  vehicle           Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  maintenanceTypeId String          @map("maintenance_type_id")
+  maintenanceType   MaintenanceType @relation(fields: [maintenanceTypeId], references: [id])
+  date              DateTime        @db.Date
+  mileage           Int
+  cost              Decimal?        @db.Decimal(10, 2)
+  notes             String?
+  location          String?
+  reminderDate      DateTime?       @map("reminder_date") @db.Date
+  reminderMileage   Int?            @map("reminder_mileage")
+  isCompleted       Boolean         @default(false) @map("is_completed")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@map("maintenance_records")
+}
+
+// ─── Billing / Pagamentos ──────────────────────────────────────────────────
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+enum PaymentProvider {
+  MERCADO_PAGO
+  STRIPE
+  PIX_DIRETO
+}
+
+enum SubscriptionStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+}
+
+model Coupon {
+  id              String        @id @default(uuid())
+  code            String        @unique
+  type            CouponType    @default(PERCENT)
+  value           Decimal       @db.Decimal(10, 2)
+  maxRedemptions  Int?          @map("max_redemptions")
+  timesRedeemed   Int           @default(0) @map("times_redeemed")
+  expiresAt       DateTime?     @map("expires_at")
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  subscriptions   Subscription[]
+
+  @@map("coupons")
+}
+
+model PaymentGateway {
+  id        String          @id @default(uuid())
+  provider  PaymentProvider @unique
+  label     String
+  enabled   Boolean         @default(false)
+  isDefault Boolean         @default(false) @map("is_default")
+  config    Json            @default("{}")
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+
+  @@map("payment_gateways")
+}
+
+model Subscription {
+  id              String             @id @default(uuid())
+  userId          String             @map("user_id")
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan            Plan               @default(PRO)
+  status          SubscriptionStatus @default(PENDING)
+  provider        PaymentProvider
+  amount          Decimal            @db.Decimal(10, 2)
+  couponId        String?            @map("coupon_id")
+  coupon          Coupon?            @relation(fields: [couponId], references: [id])
+  externalId      String?            @map("external_id")
+  checkoutUrl     String?            @map("checkout_url")
+  pixPayload      String?            @map("pix_payload")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  paidAt          DateTime?          @map("paid_at")
+
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+// ─── IA / Lembretes ────────────────────────────────────────────────────────
+
+enum AiProvider {
+  ANTHROPIC
+  OPENAI
+  GEMINI
+  OLLAMA
+}
+
+enum ReminderChannel {
+  EMAIL
+  WHATSAPP
+}
+
+model AiModelConfig {
+  id           String     @id @default(uuid())
+  provider     AiProvider
+  label        String
+  model        String
+  apiKey       String?    @map("api_key")
+  baseUrl      String?    @map("base_url")
+  systemPrompt String?    @map("system_prompt")
+  temperature  Float      @default(0.7)
+  enabled      Boolean    @default(true)
+  isDefault    Boolean    @default(false) @map("is_default")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  @@map("ai_model_configs")
+}
+
+model IntegrationConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json     @default("{}")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("integration_configs")
+}
+
+model ReminderLog {
+  id                  String          @id @default(uuid())
+  userId              String          @map("user_id")
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  maintenanceRecordId String          @map("maintenance_record_id")
+  channel             ReminderChannel
+  status              String          @default("SENT")
+  message             String?
+  sentAt              DateTime        @default(now()) @map("sent_at")
+
+  @@index([userId])
+  @@index([maintenanceRecordId, channel])
+  @@map("reminder_logs")
+}
