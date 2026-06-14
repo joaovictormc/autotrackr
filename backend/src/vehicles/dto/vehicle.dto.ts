@@ -59,7 +59,18 @@ export class CreateVehicleDto {
 }
 
 export class UpdateVehicleDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'ABC1D23' })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  plate?: string;
+
+  @ApiPropertyOptional({ example: 2022 })
+  @IsOptional()
+  @IsInt()
+  year?: number;
+
+  @ApiPropertyOptional({ example: 45000 })
   @IsOptional()
   @IsInt()
   @Min(0)
@@ -69,6 +80,11 @@ export class UpdateVehicleDto {
   @IsOptional()
   @IsString()
   color?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  vin?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

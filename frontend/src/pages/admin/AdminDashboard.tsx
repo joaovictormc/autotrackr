@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Card, CardContent, Grid, Typography, Stack, CircularProgress } from '@mui/material';
-import { Users, Car, Tag as TagIcon, ListFilter, ShieldAlert } from 'lucide-react';
+import { Users, Car, Tag as TagIcon, ListFilter, ShieldAlert, Crown } from 'lucide-react';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '../../contexts/AuthContext';
 import { adminApi, AdminStats } from '../../api/admin.api';
@@ -21,7 +21,7 @@ const StatCard: React.FC<StatCardProps> = ({ icon, title, value, color }) => {
         height: '100%',
         transition: 'transform 0.3s, box-shadow 0.3s',
         backdropFilter: 'blur(10px)',
-        backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+        backgroundColor: theme.palette.background.paper,
         '&:hover': {
           transform: 'translateY(-5px)',
           boxShadow: '0 8px 16px rgba(0, 0, 0, 0.1)',
@@ -78,6 +78,9 @@ export default function AdminDashboard() {
         </Grid>
         <Grid item xs={12} sm={6} md={4}>
           <StatCard icon={<ShieldAlert size={32} color={theme.palette.warning.main} />} title="Administradores" value={stats?.admins ?? 0} color={theme.palette.warning.main} />
+        </Grid>
+        <Grid item xs={12} sm={6} md={4}>
+          <StatCard icon={<Crown size={32} color={theme.palette.primary.main} />} title="Usuários Pro" value={stats?.proUsers ?? 0} color={theme.palette.primary.main} />
         </Grid>
         <Grid item xs={12} sm={6} md={6}>
           <StatCard icon={<TagIcon size={32} color={theme.palette.info.main} />} title="Marcas" value={stats?.brands ?? 0} color={theme.palette.info.main} />

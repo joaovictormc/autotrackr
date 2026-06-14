@@ -22,28 +22,35 @@ export class FuelService {
   }
 
   async create(vehicleId: string, userId: string, dto: CreateFuelRecordDto) {
-    await this.assertOwnership(vehicleId, userId);
-    return this.prisma.fuelRecord.create({
-      data: {
-        vehicleId,
-        date: new Date(dto.date),
-        fuelType: dto.fuelType,
-        mileage: dto.mileage,
-        quantity: dto.quantity,
-        pricePerUnit: dto.pricePerUnit,
-        totalCost: dto.totalCost,
-        fullTank: dto.fullTank ?? true,
-        station: dto.station,
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-        notes: dto.notes,
-      },
-    });
+    const vehicle = await this.assertOwnership(vehicleId, userId);
+    const [record] = await this.prisma.$transaction([
+      this.prisma.fuelRecord.create({
+        data: {
+          vehicleId,
+          date: new Date(dto.date),
+          fuelType: dto.fuelType,
+          mileage: dto.mileage,
+          quantity: dto.quantity,
+          pricePerUnit: dto.pricePerUnit,
+          totalCost: dto.totalCost,
+          fullTank: dto.fullTank ?? true,
+          station: dto.station,
+          latitude: dto.latitude,
+          longitude: dto.longitude,
+          notes: dto.notes,
+        },
+      }),
+      // Mantém a quilometragem do veículo atualizada com o maior valor registrado
+      ...(dto.mileage > vehicle.mileage
+        ? [this.prisma.vehicle.update({ where: { id: vehicleId }, data: { mileage: dto.mileage } })]
+        : []),
+    ]);
+    return record;
   }
 
   async update(vehicleId: string, id: string, userId: string, dto: UpdateFuelRecordDto) {
-    await this.assertOwnership(vehicleId, userId);
-    return this.prisma.fuelRecord.update({
+    const vehicle = await this.assertOwnership(vehicleId, userId);
+    const record = await this.prisma.fuelRecord.update({
       where: { id },
       data: {
         ...(dto.date && { date: new Date(dto.date) }),
@@ -59,6 +66,10 @@ export class FuelService {
         ...(dto.notes !== undefined && { notes: dto.notes }),
       },
     });
+    if (dto.mileage != null && dto.mileage > vehicle.mileage) {
+      await this.prisma.vehicle.update({ where: { id: vehicleId }, data: { mileage: dto.mileage } });
+    }
+    return record;
   }
 
   async remove(vehicleId: string, id: string, userId: string) {

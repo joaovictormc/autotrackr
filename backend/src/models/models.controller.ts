@@ -24,7 +24,7 @@ export class ModelsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.OPERADOR)
   @ApiOperation({ summary: 'Criar modelo (admin)' })
   create(@Body() dto: CreateModelDto) {
     return this.service.create(dto);
@@ -32,7 +32,7 @@ export class ModelsController {
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.OPERADOR)
   @ApiOperation({ summary: 'Atualizar modelo (admin)' })
   update(@Param('id') id: string, @Body() dto: UpdateModelDto) {
     return this.service.update(id, dto);
@@ -40,7 +40,7 @@ export class ModelsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.OPERADOR)
   @ApiOperation({ summary: 'Deletar modelo (admin)' })
   remove(@Param('id') id: string) {
     return this.service.remove(id);
@@ -48,7 +48,7 @@ export class ModelsController {
 
   @Post('bulk-import')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.OPERADOR)
   @ApiOperation({ summary: 'Importar modelos em lote (admin)' })
   bulkImport(@Body() dto: BulkImportModelsDto) {
     return this.service.bulkImport(dto.models);

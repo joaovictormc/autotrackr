@@ -49,27 +49,33 @@ export class MaintenanceService {
   }
 
   async create(vehicleId: string, userId: string, dto: CreateMaintenanceDto) {
-    await this.assertOwnership(vehicleId, userId);
-    return this.prisma.maintenanceRecord.create({
-      data: {
-        vehicleId,
-        maintenanceTypeId: dto.maintenanceTypeId,
-        date: new Date(dto.date),
-        mileage: dto.mileage,
-        cost: dto.cost != null ? dto.cost : null,
-        notes: dto.notes,
-        location: dto.location,
-        reminderDate: dto.reminderDate ? new Date(dto.reminderDate) : null,
-        reminderMileage: dto.reminderMileage ?? null,
-        isCompleted: dto.isCompleted ?? false,
-      },
-      include: { maintenanceType: { select: { id: true, name: true } } },
-    });
+    const vehicle = await this.assertOwnership(vehicleId, userId);
+    const [record] = await this.prisma.$transaction([
+      this.prisma.maintenanceRecord.create({
+        data: {
+          vehicleId,
+          maintenanceTypeId: dto.maintenanceTypeId,
+          date: new Date(dto.date),
+          mileage: dto.mileage,
+          cost: dto.cost != null ? dto.cost : null,
+          notes: dto.notes,
+          location: dto.location,
+          reminderDate: dto.reminderDate ? new Date(dto.reminderDate) : null,
+          reminderMileage: dto.reminderMileage ?? null,
+          isCompleted: dto.isCompleted ?? false,
+        },
+        include: { maintenanceType: { select: { id: true, name: true } } },
+      }),
+      ...(dto.mileage > vehicle.mileage
+        ? [this.prisma.vehicle.update({ where: { id: vehicleId }, data: { mileage: dto.mileage } })]
+        : []),
+    ]);
+    return record;
   }
 
   async update(vehicleId: string, id: string, userId: string, dto: UpdateMaintenanceDto) {
-    await this.assertOwnership(vehicleId, userId);
-    return this.prisma.maintenanceRecord.update({
+    const vehicle = await this.assertOwnership(vehicleId, userId);
+    const record = await this.prisma.maintenanceRecord.update({
       where: { id },
       data: {
         ...(dto.maintenanceTypeId && { maintenanceTypeId: dto.maintenanceTypeId }),
@@ -84,6 +90,10 @@ export class MaintenanceService {
       },
       include: { maintenanceType: { select: { id: true, name: true } } },
     });
+    if (dto.mileage != null && dto.mileage > vehicle.mileage) {
+      await this.prisma.vehicle.update({ where: { id: vehicleId }, data: { mileage: dto.mileage } });
+    }
+    return record;
   }
 
   async remove(vehicleId: string, id: string, userId: string) {

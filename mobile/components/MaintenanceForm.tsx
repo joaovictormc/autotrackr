@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
 import DateField from './DateField';
+import LocationPicker from './LocationPicker';
 import type { MaintenanceRecord, MaintenanceType, CreateMaintenancePayload, Vehicle } from '@autotrackr/shared';
 
 interface Props {
@@ -207,17 +208,19 @@ export default function MaintenanceForm({ vehicleId, vehicle, record, onSuccess,
         </View>
       </View>
 
-      {/* Cost & Location */}
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={{ flex: 1 }}>
-          <Text style={labelStyle}>{t('maintenance.cost')}</Text>
-          <TextInput style={inputStyle} value={cost} onChangeText={setCost} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted} placeholder="0,00" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={labelStyle}>{t('maintenance.location')}</Text>
-          <TextInput style={inputStyle} value={location} onChangeText={setLocation} placeholderTextColor={colors.textMuted} />
-        </View>
+      {/* Cost */}
+      <View>
+        <Text style={labelStyle}>{t('maintenance.cost')}</Text>
+        <TextInput style={inputStyle} value={cost} onChangeText={setCost} keyboardType="decimal-pad" placeholderTextColor={colors.textMuted} placeholder="0,00" />
       </View>
+
+      {/* Location */}
+      <LocationPicker
+        label={t('maintenance.location')}
+        value={location}
+        onChange={setLocation}
+        nearbyType="car_repair"
+      />
 
       {/* Reminders */}
       <View style={{ flexDirection: 'row', gap: 8 }}>

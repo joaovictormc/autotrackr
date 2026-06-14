@@ -4,21 +4,36 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { AlertTriangle, TrendingUp, Gauge, ChevronDown } from 'lucide-react-native';
-import { useQuery } from '@tanstack/react-query';
+import { AlertTriangle, TrendingUp, Gauge, Route, ChevronDown } from 'lucide-react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useFocusEffect } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useVehicle } from '../../contexts/VehicleContext';
+import AdBanner from '../../components/AdBanner';
 import { api } from '../../lib/api';
+import { fmtDate, parseLocalDate } from '../../lib/dateUtils';
 import { avgConsumption } from '@autotrackr/shared';
-import type { MaintenanceRecord, FuelRecord } from '@autotrackr/shared';
+import type { MaintenanceRecord, FuelRecord, Trip } from '@autotrackr/shared';
 
 export default function DashboardScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const { user } = useAuth();
   const { vehicleId, vehicle, vehicles, setVehicleId, loadingVehicles } = useVehicle();
+  const qc = useQueryClient();
   const [vehiclePicker, setVehiclePicker] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (vehicleId) {
+        qc.invalidateQueries({ queryKey: ['fuel', vehicleId] });
+        qc.invalidateQueries({ queryKey: ['maintenance', vehicleId] });
+        qc.invalidateQueries({ queryKey: ['trips', vehicleId] });
+        qc.invalidateQueries({ queryKey: ['vehicles'] });
+      }
+    }, [vehicleId, qc]),
+  );
 
   const { data: maintenanceRecords = [], refetch: refetchMaint, isRefetching } = useQuery({
     queryKey: ['maintenance', vehicleId],
@@ -32,21 +47,36 @@ export default function DashboardScreen() {
     enabled: !!vehicleId,
   });
 
-  const handleRefresh = () => { refetchMaint(); refetchFuel(); };
+  const { data: trips = [], refetch: refetchTrips } = useQuery({
+    queryKey: ['trips', vehicleId],
+    queryFn: () => api.get<Trip[]>(`/vehicles/${vehicleId}/trips`).then(r => r.data),
+    enabled: !!vehicleId,
+  });
+
+  const handleRefresh = () => { refetchMaint(); refetchFuel(); refetchTrips(); };
 
   const today = new Date();
   const overdueMaints = maintenanceRecords.filter(m => {
     if (m.isCompleted) return false;
-    if (m.reminderDate && new Date(m.reminderDate) <= today) return true;
+    if (m.reminderDate && parseLocalDate(m.reminderDate) <= today) return true;
     if (m.reminderMileage && vehicle && vehicle.mileage >= m.reminderMileage) return true;
     return false;
   });
 
   const consumption = avgConsumption(fuelRecords);
 
+  const now = new Date();
+  const kmThisMonth = trips
+    .filter(tr => {
+      const d = new Date(tr.date);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    })
+    .reduce((sum, tr) => sum + tr.distanceKm, 0);
+
   const recentItems = [
-    ...fuelRecords.slice(0, 3).map(f => ({ ...f, _type: 'fuel' as const })),
+    ...fuelRecords.slice(0, 2).map(f => ({ ...f, _type: 'fuel' as const })),
     ...maintenanceRecords.slice(0, 2).map(m => ({ ...m, _type: 'maint' as const })),
+    ...trips.slice(0, 2).map(tr => ({ ...tr, _type: 'trip' as const })),
   ]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 4);
@@ -125,23 +155,32 @@ export default function DashboardScreen() {
 
         {/* Stats row */}
         {vehicle && (
-          <View style={{ flexDirection: 'row', gap: 10, marginBottom: 12 }}>
-            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderTopWidth: 2, borderTopColor: colors.primary }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                <Gauge size={13} color={colors.textMuted} />
-                <Text style={{ color: colors.textMuted, fontSize: 11 }}>KM atual</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderTopWidth: 2, borderTopColor: colors.primary }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                <Gauge size={12} color={colors.textMuted} />
+                <Text style={{ color: colors.textMuted, fontSize: 10 }}>KM atual</Text>
               </View>
-              <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>
                 {vehicle.mileage.toLocaleString('pt-BR')}
               </Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 14, borderTopWidth: 2, borderTopColor: colors.success }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-                <TrendingUp size={13} color={colors.textMuted} />
-                <Text style={{ color: colors.textMuted, fontSize: 11 }}>Média km/L</Text>
+            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderTopWidth: 2, borderTopColor: colors.success }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                <TrendingUp size={12} color={colors.textMuted} />
+                <Text style={{ color: colors.textMuted, fontSize: 10 }}>Média km/L</Text>
               </View>
-              <Text style={{ color: colors.text, fontSize: 20, fontWeight: '700' }}>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>
                 {consumption ? consumption.value.toFixed(1) : '—'}
+              </Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 12, padding: 12, borderTopWidth: 2, borderTopColor: '#8b5cf6' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                <Route size={12} color={colors.textMuted} />
+                <Text style={{ color: colors.textMuted, fontSize: 10 }}>{t('trips.kmThisMonth')}</Text>
+              </View>
+              <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>
+                {kmThisMonth.toLocaleString('pt-BR')}
               </Text>
             </View>
           </View>
@@ -163,6 +202,9 @@ export default function DashboardScreen() {
             ))}
           </View>
         )}
+
+        {/* Ad banner (Free apenas) */}
+        <AdBanner />
 
         {/* Recent activity */}
         <Text style={{ color: colors.textSecondary, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10, fontWeight: '600' }}>
@@ -190,16 +232,29 @@ export default function DashboardScreen() {
               {item._type === 'fuel' ? (
                 <>
                   <View style={{ flex: 1 }}>
-                    {/* FIX: usa i18n em vez de raw enum */}
                     <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500' }}>
                       {t(`fuel.types.${(item as FuelRecord).fuelType}`)}
                     </Text>
                     <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                      {new Date((item as FuelRecord).date).toLocaleDateString('pt-BR')}
+                      {fmtDate((item as FuelRecord).date)}
                     </Text>
                   </View>
                   <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>
                     {parseFloat((item as FuelRecord).quantity).toFixed(3)} L
+                  </Text>
+                </>
+              ) : item._type === 'trip' ? (
+                <>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500' }} numberOfLines={1}>
+                      {(item as Trip).origin} → {(item as Trip).destination}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                      {fmtDate((item as Trip).date)} · {t(`trips.purposes.${(item as Trip).purpose}`)}
+                    </Text>
+                  </View>
+                  <Text style={{ color: '#8b5cf6', fontSize: 13, fontWeight: '600' }}>
+                    {(item as Trip).distanceKm.toLocaleString('pt-BR')} km
                   </Text>
                 </>
               ) : (
@@ -209,7 +264,7 @@ export default function DashboardScreen() {
                       {(item as MaintenanceRecord).maintenanceType.name}
                     </Text>
                     <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>
-                      {new Date((item as MaintenanceRecord).date).toLocaleDateString('pt-BR')}
+                      {fmtDate((item as MaintenanceRecord).date)}
                     </Text>
                   </View>
                   <Text style={{ color: colors.textMuted, fontSize: 12 }}>

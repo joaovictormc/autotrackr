@@ -9,44 +9,52 @@ import SearchablePicker, { PickerOption } from './SearchablePicker';
 import type { CreateVehiclePayload, Vehicle } from '@autotrackr/shared';
 
 interface Props {
+  vehicle?: Vehicle | null;
   onSuccess: () => void;
   onClose: () => void;
 }
 
-export default function AddVehicleForm({ onSuccess, onClose }: Props) {
+export default function AddVehicleForm({ vehicle, onSuccess, onClose }: Props) {
   const { t } = useTranslation();
   const { colors } = useTheme();
+  const isEdit = !!vehicle;
 
   const [brand, setBrand] = useState<PickerOption | null>(null);
   const [model, setModel] = useState<PickerOption | null>(null);
   const [yearOpt, setYearOpt] = useState<PickerOption | null>(null);
-  const [manualYear, setManualYear] = useState(false);
-  const [manualYearVal, setManualYearVal] = useState('');
-  const [plate, setPlate] = useState('');
-  const [mileage, setMileage] = useState('');
-  const [color, setColor] = useState('');
-  const [vin, setVin] = useState('');
-  const [details, setDetails] = useState('');
+  // Na edição marca/modelo são read-only e o ano vira input numérico direto.
+  const [manualYear, setManualYear] = useState(isEdit);
+  const [manualYearVal, setManualYearVal] = useState(isEdit ? String(vehicle!.year) : '');
+  const [plate, setPlate] = useState(vehicle?.plate ?? '');
+  const [mileage, setMileage] = useState(isEdit ? String(vehicle!.mileage) : '');
+  const [color, setColor] = useState(vehicle?.color ?? '');
+  const [vin, setVin] = useState(vehicle?.vin ?? '');
+  const [details, setDetails] = useState(vehicle?.details ?? '');
   const [error, setError] = useState('');
 
-  // FIPE encadeado via react-query (cache em AsyncStorage dentro de getX)
-  const brandsQ = useQuery({ queryKey: ['fipe-brands'], queryFn: getBrands });
+  // FIPE encadeado via react-query (cache em AsyncStorage dentro de getX) — só no cadastro
+  const brandsQ = useQuery({ queryKey: ['fipe-brands'], queryFn: getBrands, enabled: !isEdit });
   const modelsQ = useQuery({
     queryKey: ['fipe-models', brand?.code],
     queryFn: () => getModels(brand!.code),
-    enabled: !!brand,
+    enabled: !isEdit && !!brand,
   });
   const yearsQ = useQuery({
     queryKey: ['fipe-years', brand?.code, model?.code],
     queryFn: () => getYears(brand!.code, model!.code),
-    enabled: !!brand && !!model,
+    enabled: !isEdit && !!brand && !!model,
   });
 
   const mutation = useMutation({
-    mutationFn: (payload: CreateVehiclePayload) =>
-      api.post<Vehicle>('/vehicles', payload).then(r => r.data),
+    mutationFn: (payload: CreateVehiclePayload | Partial<CreateVehiclePayload>) =>
+      isEdit
+        ? api.put<Vehicle>(`/vehicles/${vehicle!.id}`, payload).then(r => r.data)
+        : api.post<Vehicle>('/vehicles', payload).then(r => r.data),
     onSuccess,
     onError: (e: any) => {
+      if (e?.response?.data?.code === 'VEHICLE_LIMIT') {
+        return setError(t('plan.limitReached'));
+      }
       const msg = e?.response?.data?.message;
       setError(Array.isArray(msg) ? msg.join(' | ') : msg || t('common.saveError'));
     },
@@ -58,7 +66,9 @@ export default function AddVehicleForm({ onSuccess, onClose }: Props) {
     const mileageInt = parseInt(mileage, 10);
     const maxYear = new Date().getFullYear() + 1;
 
-    if (!brand || !model || !plate.trim() || (!yearOpt && !manualYearVal)) {
+    if (isEdit) {
+      if (!plate.trim()) return setError(t('vehicleForm.errRequired'));
+    } else if (!brand || !model || !plate.trim() || (!yearOpt && !manualYearVal)) {
       return setError(t('vehicleForm.errRequired'));
     }
     if (isNaN(yearInt) || yearInt < 1950 || yearInt > maxYear) {
@@ -69,11 +79,24 @@ export default function AddVehicleForm({ onSuccess, onClose }: Props) {
     }
 
     setError('');
+
+    if (isEdit) {
+      mutation.mutate({
+        plate: plate.trim().toUpperCase(),
+        year: yearInt,
+        mileage: mileageInt,
+        color: color || undefined,
+        vin: vin || undefined,
+        details: details || undefined,
+      });
+      return;
+    }
+
     mutation.mutate({
-      brandName: brand.name,
-      brandApiCode: brand.code,
-      modelName: model.name,
-      modelApiCode: model.code,
+      brandName: brand!.name,
+      brandApiCode: brand!.code,
+      modelName: model!.name,
+      modelApiCode: model!.code,
       plate: plate.trim().toUpperCase(),
       year: yearInt,
       mileage: mileageInt,
@@ -98,10 +121,10 @@ export default function AddVehicleForm({ onSuccess, onClose }: Props) {
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
       <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 4 }}>
-        {t('vehicleForm.title')}
+        {isEdit ? t('vehicleForm.editTitle') : t('vehicleForm.newTitle')}
       </Text>
 
-      {(error || brandsQ.isError) ? (
+      {(error || (!isEdit && brandsQ.isError)) ? (
         <View style={{ backgroundColor: '#450a0a', borderRadius: 8, padding: 10, borderLeftWidth: 3, borderLeftColor: colors.danger }}>
           <Text style={{ color: '#fca5a5', fontSize: 13 }}>
             {error || t('vehicleForm.loadBrandsError')}
@@ -109,28 +132,48 @@ export default function AddVehicleForm({ onSuccess, onClose }: Props) {
         </View>
       ) : null}
 
-      {/* Marca */}
-      <SearchablePicker
-        label={t('vehicleForm.brand')}
-        value={brand?.code ?? ''}
-        options={brandsQ.data ?? []}
-        loading={brandsQ.isLoading}
-        placeholder={t('vehicleForm.selectBrand')}
-        searchPlaceholder={t('vehicleForm.searchBrand')}
-        onSelect={(o) => { setBrand(o); setModel(null); setYearOpt(null); }}
-      />
+      {isEdit ? (
+        /* Marca/Modelo read-only na edição */
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={labelStyle}>{t('vehicleForm.brand')}</Text>
+            <View style={{ ...inputStyle, opacity: 0.6 }}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{vehicle!.brand.name}</Text>
+            </View>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={labelStyle}>{t('vehicleForm.model')}</Text>
+            <View style={{ ...inputStyle, opacity: 0.6 }}>
+              <Text style={{ color: colors.text, fontSize: 15 }}>{vehicle!.model.name}</Text>
+            </View>
+          </View>
+        </View>
+      ) : (
+        <>
+          {/* Marca */}
+          <SearchablePicker
+            label={t('vehicleForm.brand')}
+            value={brand?.code ?? ''}
+            options={brandsQ.data ?? []}
+            loading={brandsQ.isLoading}
+            placeholder={t('vehicleForm.selectBrand')}
+            searchPlaceholder={t('vehicleForm.searchBrand')}
+            onSelect={(o) => { setBrand(o); setModel(null); setYearOpt(null); }}
+          />
 
-      {/* Modelo */}
-      <SearchablePicker
-        label={t('vehicleForm.model')}
-        value={model?.code ?? ''}
-        options={modelsQ.data ?? []}
-        loading={modelsQ.isLoading}
-        disabled={!brand}
-        placeholder={t('vehicleForm.selectModel')}
-        searchPlaceholder={t('vehicleForm.searchModel')}
-        onSelect={(o) => { setModel(o); setYearOpt(null); }}
-      />
+          {/* Modelo */}
+          <SearchablePicker
+            label={t('vehicleForm.model')}
+            value={model?.code ?? ''}
+            options={modelsQ.data ?? []}
+            loading={modelsQ.isLoading}
+            disabled={!brand}
+            placeholder={t('vehicleForm.selectModel')}
+            searchPlaceholder={t('vehicleForm.searchModel')}
+            onSelect={(o) => { setModel(o); setYearOpt(null); }}
+          />
+        </>
+      )}
 
       {/* Ano + Placa */}
       <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -146,9 +189,11 @@ export default function AddVehicleForm({ onSuccess, onClose }: Props) {
                 placeholder={`Ex: ${new Date().getFullYear() - 10}`}
                 placeholderTextColor={colors.textMuted}
               />
-              <TouchableOpacity onPress={() => { setManualYear(false); setManualYearVal(''); }}>
-                <Text style={{ color: colors.primary, fontSize: 11, marginTop: 4 }}>{t('vehicleForm.backToFipe')}</Text>
-              </TouchableOpacity>
+              {!isEdit && (
+                <TouchableOpacity onPress={() => { setManualYear(false); setManualYearVal(''); }}>
+                  <Text style={{ color: colors.primary, fontSize: 11, marginTop: 4 }}>{t('vehicleForm.backToFipe')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <View>

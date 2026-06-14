@@ -23,7 +23,9 @@ import {
   ChevronsLeft,
   ChevronsRight,
   UserCog,
-  BarChart
+  CreditCard,
+  Sparkles,
+  BellRing
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -34,7 +36,7 @@ export default function AdminSidebar() {
   const theme = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, isAdmin } = useAuth();
   const [open, setOpen] = useState(true);
 
   const handleDrawerToggle = () => {
@@ -42,7 +44,7 @@ export default function AdminSidebar() {
   };
 
   // Lista de itens do menu
-  const menuItems = [
+  const menuItems: { text: string; icon: React.ReactNode; path: string; adminOnly?: boolean }[] = [
     {
       text: 'Dashboard Admin',
       icon: <HomeIcon size={20} />,
@@ -64,11 +66,24 @@ export default function AdminSidebar() {
       path: '/admin/users',
     },
     {
-      text: 'Estatísticas',
-      icon: <BarChart size={20} />,
-      path: '/admin/stats',
+      text: 'Pagamentos',
+      icon: <CreditCard size={20} />,
+      path: '/admin/payments',
+      adminOnly: true,
     },
-  ];
+    {
+      text: 'Modelos de IA',
+      icon: <Sparkles size={20} />,
+      path: '/admin/ai-models',
+      adminOnly: true,
+    },
+    {
+      text: 'Lembretes',
+      icon: <BellRing size={20} />,
+      path: '/admin/reminders',
+      adminOnly: true,
+    },
+  ].filter((item) => !item.adminOnly || isAdmin);
 
   return (
     <Drawer
@@ -80,13 +95,13 @@ export default function AdminSidebar() {
           width: open ? drawerWidth : theme.spacing(7),
           boxSizing: 'border-box',
           overflowX: 'hidden',
-          backgroundColor: theme.palette.mode === 'dark' ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+          backgroundColor: theme.palette.background.paper,
           backdropFilter: 'blur(10px)',
           transition: theme.transitions.create(['width'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
           }),
-          borderRight: '1px solid rgba(0, 0, 0, 0.08)',
+          borderRight: `1px solid ${theme.palette.divider}`,
         },
       }}
     >
@@ -96,7 +111,7 @@ export default function AdminSidebar() {
           alignItems: 'center',
           padding: theme.spacing(1),
           justifyContent: open ? 'space-between' : 'center',
-          borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+          borderBottom: `1px solid ${theme.palette.divider}`,
         }}
       >
         {open && (
@@ -129,9 +144,12 @@ export default function AdminSidebar() {
                 minHeight: 48,
                 justifyContent: open ? 'initial' : 'center',
                 px: 2.5,
-                backgroundColor: location.pathname === item.path ? 
-                  (theme.palette.mode === 'dark' ? 'rgba(25, 118, 210, 0.2)' : 'rgba(25, 118, 210, 0.08)') : 
-                  'transparent',
+                backgroundColor: location.pathname === item.path
+                  ? `${theme.palette.primary.main}${theme.palette.mode === 'dark' ? '33' : '14'}`
+                  : 'transparent',
+                '&:hover': {
+                  backgroundColor: `${theme.palette.primary.main}1f`,
+                },
               }}
               onClick={() => navigate(item.path)}
             >

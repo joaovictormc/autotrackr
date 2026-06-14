@@ -12,6 +12,9 @@ import { api } from '../../../../lib/api';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import FormSheet from '../../../../components/FormSheet';
 import RevenueForm from '../../../../components/RevenueForm';
+import AdInterstitial from '../../../../components/AdInterstitial';
+import { useAdInterstitial } from '../../../../hooks/useAdInterstitial';
+import { fmtDate } from '../../../../lib/dateUtils';
 import type { RevenueRecord } from '@autotrackr/shared';
 
 export default function RevenueScreen() {
@@ -22,6 +25,7 @@ export default function RevenueScreen() {
   const qc = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<RevenueRecord | null>(null);
+  const { adVisible, triggerAd, dismissAd, goToUpgrade } = useAdInterstitial();
 
   const { data: records = [], isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['revenue', vehicleId],
@@ -52,7 +56,7 @@ export default function RevenueScreen() {
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>{item.category}</Text>
         <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}>
-          {new Date(item.date).toLocaleDateString('pt-BR')}
+          {fmtDate(item.date)}
           {item.notes ? ` · ${item.notes}` : ''}
         </Text>
       </View>
@@ -117,10 +121,17 @@ export default function RevenueScreen() {
         <RevenueForm
           vehicleId={vehicleId!}
           record={editing}
-          onSuccess={() => { closeSheet(); qc.invalidateQueries({ queryKey: ['revenue', vehicleId] }); }}
+          onSuccess={() => {
+            const isNew = !editing;
+            closeSheet();
+            qc.invalidateQueries({ queryKey: ['revenue', vehicleId] });
+            if (isNew) triggerAd();
+          }}
           onClose={closeSheet}
         />
       </FormSheet>
+
+      <AdInterstitial visible={adVisible} onDismiss={dismissAd} onUpgrade={goToUpgrade} />
     </View>
   );
 }

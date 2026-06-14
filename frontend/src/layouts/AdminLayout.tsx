@@ -8,24 +8,22 @@ import AdminAppBar from '../components/admin/AdminAppBar';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
-  const { loading, isAuthenticated, isAdmin, loadingError } = useAuth();
+  const { loading, isAuthenticated, isStaff, loadingError } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
-  
+
   useEffect(() => {
-    console.log('AdminLayout - loading:', loading, 'isAuthenticated:', isAuthenticated, 'isAdmin:', isAdmin, 'loadingError:', loadingError);
-    
     if (!loading && !isAuthenticated) {
       navigate('/login');
     }
-    
-    if (!loading && isAuthenticated && !isAdmin) {
-      enqueueSnackbar('Acesso não autorizado. Você precisa ser um administrador.', {
+
+    if (!loading && isAuthenticated && !isStaff) {
+      enqueueSnackbar('Acesso não autorizado. Você precisa ser administrador ou operador.', {
         variant: 'error',
         autoHideDuration: 3000
       });
       navigate('/');
     }
-  }, [loading, isAuthenticated, isAdmin, navigate]);
+  }, [loading, isAuthenticated, isStaff, navigate]);
 
   if (loading) {
     return (
@@ -37,11 +35,11 @@ export default function AdminLayout() {
           justifyContent: 'center',
           minHeight: '100vh',
           gap: 2,
-          background: 'linear-gradient(45deg, #1a237e 30%, #283593 90%)'
+          bgcolor: 'background.default',
         }}
       >
-        <CircularProgress size={60} thickness={4} sx={{ color: 'white' }} />
-        <Typography variant="h6" sx={{ color: 'white', mt: 2 }}>
+        <CircularProgress size={60} thickness={4} />
+        <Typography variant="h6" color="text.secondary" sx={{ mt: 2 }}>
           Carregando...
         </Typography>
       </Box>
@@ -58,41 +56,20 @@ export default function AdminLayout() {
           justifyContent: 'center',
           minHeight: '100vh',
           gap: 2,
-          background: 'linear-gradient(45deg, #c62828 30%, #d32f2f 90%)'
+          bgcolor: 'background.default',
         }}
       >
-        <Typography variant="h5" sx={{ color: 'white', textAlign: 'center', mb: 2 }}>
+        <Typography variant="h5" color="error" sx={{ textAlign: 'center', mb: 2 }}>
           Erro ao carregar os dados
         </Typography>
-        <Typography variant="body1" sx={{ color: 'white', textAlign: 'center', mb: 3 }}>
+        <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', mb: 3 }}>
           Ocorreu um erro ao tentar conectar com o servidor.
         </Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
-          <Button
-            variant="contained"
-            onClick={() => window.location.reload()}
-            sx={{
-              bgcolor: 'white',
-              color: '#c62828',
-              '&:hover': {
-                bgcolor: '#f5f5f5'
-              }
-            }}
-          >
+          <Button variant="contained" onClick={() => window.location.reload()}>
             Recarregar página
           </Button>
-          <Button
-            variant="outlined"
-            onClick={() => navigate('/')}
-            sx={{
-              color: 'white',
-              borderColor: 'white',
-              '&:hover': {
-                borderColor: '#f5f5f5',
-                bgcolor: 'rgba(255,255,255,0.1)'
-              }
-            }}
-          >
+          <Button variant="outlined" onClick={() => navigate('/')}>
             Voltar ao início
           </Button>
         </Box>
@@ -100,7 +77,7 @@ export default function AdminLayout() {
     );
   }
 
-  if (!isAdmin) {
+  if (!isStaff) {
     return null;
   }
 
@@ -113,7 +90,7 @@ export default function AdminLayout() {
           flexGrow: 1,
           height: '100vh',
           overflow: 'auto',
-          bgcolor: '#f5f5f5'
+          bgcolor: 'background.default',
         }}
       >
         <AdminAppBar />

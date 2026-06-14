@@ -23,7 +23,7 @@ export class BrandsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.OPERADOR)
   @ApiOperation({ summary: 'Criar marca (admin)' })
   create(@Body() dto: CreateBrandDto) {
     return this.service.create(dto);
@@ -31,7 +31,7 @@ export class BrandsController {
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.OPERADOR)
   @ApiOperation({ summary: 'Atualizar marca (admin)' })
   update(@Param('id') id: string, @Body() dto: UpdateBrandDto) {
     return this.service.update(id, dto);
@@ -39,7 +39,7 @@ export class BrandsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.OPERADOR)
   @ApiOperation({ summary: 'Deletar marca (admin)' })
   remove(@Param('id') id: string) {
     return this.service.remove(id);
@@ -47,7 +47,7 @@ export class BrandsController {
 
   @Post('bulk-import')
   @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.OPERADOR)
   @ApiOperation({ summary: 'Importar marcas em lote (admin)' })
   bulkImport(@Body() dto: BulkImportBrandsDto) {
     return this.service.bulkImport(dto.brands);

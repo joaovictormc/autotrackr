@@ -5,7 +5,8 @@ export interface UserProfile {
   email: string;
   name?: string;
   phone?: string;
-  role: 'USER' | 'ADMIN';
+  role: 'USER' | 'OPERADOR' | 'ADMIN';
+  plan: 'FREE' | 'PRO';
 }
 
 export interface AuthResponse {
@@ -130,6 +131,40 @@ export interface CreateMaintenancePayload {
   reminderDate?: string;
   reminderMileage?: number;
   isCompleted?: boolean;
+}
+
+// ─── Trips ───────────────────────────────────────────────────────────────────
+
+export type TripPurpose = 'WORK' | 'PERSONAL' | 'BUSINESS' | 'OTHER';
+
+export interface Trip {
+  id: string;
+  vehicleId: string;
+  date: string;
+  origin: string;
+  destination: string;
+  distanceKm: number;
+  mileageStart?: number | null;
+  mileageEnd?: number | null;
+  durationMin?: number | null;
+  purpose: TripPurpose;
+  passengers?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTripPayload {
+  date: string;
+  origin: string;
+  destination: string;
+  distanceKm: number;
+  mileageStart?: number;
+  mileageEnd?: number;
+  durationMin?: number;
+  purpose?: TripPurpose;
+  passengers?: number;
+  notes?: string;
 }
 
 // ─── Revenue ─────────────────────────────────────────────────────────────────

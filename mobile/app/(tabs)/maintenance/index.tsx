@@ -9,6 +9,9 @@ import { useVehicle } from '../../../contexts/VehicleContext';
 import { api } from '../../../lib/api';
 import FormSheet from '../../../components/FormSheet';
 import MaintenanceForm from '../../../components/MaintenanceForm';
+import AdInterstitial from '../../../components/AdInterstitial';
+import { useAdInterstitial } from '../../../hooks/useAdInterstitial';
+import { fmtDate, parseLocalDate } from '../../../lib/dateUtils';
 import type { MaintenanceRecord } from '@autotrackr/shared';
 
 export default function MaintenanceScreen() {
@@ -18,6 +21,7 @@ export default function MaintenanceScreen() {
   const qc = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<MaintenanceRecord | null>(null);
+  const { adVisible, triggerAd, dismissAd, goToUpgrade } = useAdInterstitial();
 
   const { data: records = [], isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['maintenance', vehicleId],
@@ -43,7 +47,7 @@ export default function MaintenanceScreen() {
   const today = new Date();
   const getStatus = (r: MaintenanceRecord) => {
     if (r.isCompleted) return 'completed';
-    if (r.reminderDate && new Date(r.reminderDate) <= today) return 'overdue';
+    if (r.reminderDate && parseLocalDate(r.reminderDate) <= today) return 'overdue';
     if (r.reminderMileage && vehicle && vehicle.mileage >= r.reminderMileage) return 'overdue';
     return 'pending';
   };
@@ -73,7 +77,7 @@ export default function MaintenanceScreen() {
         <View style={{ flex: 1 }}>
           <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>{item.maintenanceType.name}</Text>
           <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 1 }}>
-            {new Date(item.date).toLocaleDateString('pt-BR')} · {item.mileage.toLocaleString('pt-BR')} km
+            {fmtDate(item.date)} · {item.mileage.toLocaleString('pt-BR')} km
           </Text>
           {status === 'overdue' && (
             <Text style={{ color: colors.warning, fontSize: 11, marginTop: 2, fontWeight: '500' }}>
@@ -138,10 +142,18 @@ export default function MaintenanceScreen() {
           vehicleId={vehicleId!}
           vehicle={vehicle!}
           record={editing}
-          onSuccess={() => { closeSheet(); qc.invalidateQueries({ queryKey: ['maintenance', vehicleId] }); }}
+          onSuccess={() => {
+            const isNew = !editing;
+            closeSheet();
+            qc.invalidateQueries({ queryKey: ['maintenance', vehicleId] });
+            qc.invalidateQueries({ queryKey: ['vehicles'] });
+            if (isNew) triggerAd();
+          }}
           onClose={closeSheet}
         />
       </FormSheet>
+
+      <AdInterstitial visible={adVisible} onDismiss={dismissAd} onUpgrade={goToUpgrade} />
     </SafeAreaView>
   );
 }

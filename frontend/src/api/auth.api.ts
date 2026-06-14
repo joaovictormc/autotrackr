@@ -5,7 +5,8 @@ export interface UserProfile {
   email: string;
   name?: string;
   phone?: string;
-  role: 'USER' | 'ADMIN';
+  role: 'USER' | 'OPERADOR' | 'ADMIN';
+  plan: 'FREE' | 'PRO';
 }
 
 export interface AuthResponse {

@@ -29,6 +29,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { vehiclesApi, Vehicle } from '../api/vehicles.api';
 import { maintenanceApi, MaintenanceRecord } from '../api/maintenance.api';
 import AddVehicleDrawer from '../components/AddVehicleDrawer';
+import AdBanner from '../components/AdBanner';
 import EditVehicleDialog from '../components/EditVehicleDialog';
 import StatCard from '../components/StatCard';
 
@@ -263,6 +264,11 @@ export default function Dashboard() {
               color={theme.palette.success.main}
             />
           </Grid>
+        </Grid>
+
+        {/* Banner de anúncio (Free apenas) */}
+        <Grid item xs={12}>
+          <AdBanner />
         </Grid>
 
         {/* Tabela de veículos */}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs, Redirect } from 'expo-router';
-import { Home, Droplets, Wrench, User } from 'lucide-react-native';
+import { Home, Droplets, Wrench, Route, User } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../contexts/AuthContext';
@@ -50,6 +50,13 @@ function TabsLayout() {
         options={{
           title: t('nav.maintenance'),
           tabBarIcon: ({ color, size }) => <Wrench size={size} color={color} strokeWidth={1.8} />,
+        }}
+      />
+      <Tabs.Screen
+        name="trips"
+        options={{
+          title: t('nav.trips'),
+          tabBarIcon: ({ color, size }) => <Route size={size} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tabs.Screen

@@ -18,6 +18,7 @@ import Dashboard from './pages/Dashboard';
 import Maintenance from './pages/Maintenance';
 import FuelTracking from './pages/FuelTracking';
 import Revenue from './pages/Revenue';
+import Trips from './pages/Trips';
 import Reports from './pages/Reports';
 import Profile from './pages/Profile';
 import AuthLayout from './layouts/AuthLayout';
@@ -26,6 +27,11 @@ import AdminLayout from './layouts/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import BrandsManager from './pages/admin/BrandsManager';
 import ModelsManager from './pages/admin/ModelsManager';
+import UsersManager from './pages/admin/UsersManager';
+import PaymentsManager from './pages/admin/PaymentsManager';
+import AiModelsManager from './pages/admin/AiModelsManager';
+import RemindersSettings from './pages/admin/RemindersSettings';
+import UpgradePro from './pages/UpgradePro';
 import SystemError from './pages/SystemError';
 
 // Componente para monitorar estado da rede
@@ -164,7 +170,9 @@ const router = createBrowserRouter(
         <Route path="/maintenance" element={<Maintenance />} />
         <Route path="/fuel" element={<FuelTracking />} />
         <Route path="/revenue" element={<Revenue />} />
+        <Route path="/trips" element={<Trips />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/pro" element={<UpgradePro />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/vehicles/new" element={<Navigate to="/dashboard" replace />} />
       </Route>
@@ -172,6 +180,10 @@ const router = createBrowserRouter(
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/brands" element={<BrandsManager />} />
         <Route path="/admin/models" element={<ModelsManager />} />
+        <Route path="/admin/users" element={<UsersManager />} />
+        <Route path="/admin/payments" element={<PaymentsManager />} />
+        <Route path="/admin/ai-models" element={<AiModelsManager />} />
+        <Route path="/admin/reminders" element={<RemindersSettings />} />
       </Route>
       <Route path="/system-error" element={<SystemError />} />
       <Route path="*" element={<Navigate to="/login" replace />} />

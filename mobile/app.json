@@ -20,10 +20,29 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.labapp.autotrackr",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyATp_8WEuVG_GRJBKi2vTJ1QjNnwLrKHXY"
+        }
+      }
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permite ao AutoTrackr acessar sua localização para registrar o local da manutenção."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#0f172a",
+          "defaultChannel": "autotrackr"
+        }
+      ]
     ],
     "web": {
       "favicon": "./assets/favicon.png",

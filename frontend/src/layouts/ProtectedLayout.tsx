@@ -30,6 +30,7 @@ import {
   LayoutDashboard,
   Menu,
   RefreshCw,
+  Route,
   Settings,
   Shield,
   TrendingUp,
@@ -84,7 +85,7 @@ function NavItem({ icon: Icon, label, to, onClick }: NavItemProps) {
 export default function ProtectedLayout() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { user, loading, loadingError, isAdmin, retryConnection } = useAuth();
+  const { user, loading, loadingError, isStaff, retryConnection } = useAuth();
 
   const [loadingTimeout, setLoadingTimeout] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -194,9 +195,10 @@ export default function ProtectedLayout() {
           <NavItem icon={LayoutDashboard} label={t('nav.dashboard')} to="/dashboard" onClick={() => setSidebarOpen(false)} />
           <NavItem icon={Wrench} label={t('nav.maintenance')} to="/maintenance" onClick={() => setSidebarOpen(false)} />
           <NavItem icon={Fuel} label={t('nav.fuel')} to="/fuel" onClick={() => setSidebarOpen(false)} />
+          <NavItem icon={Route} label={t('nav.trips')} to="/trips" onClick={() => setSidebarOpen(false)} />
           <NavItem icon={TrendingUp} label={t('nav.revenue')} to="/revenue" onClick={() => setSidebarOpen(false)} />
           <NavItem icon={BarChart3} label={t('nav.reports')} to="/reports" onClick={() => setSidebarOpen(false)} />
-          {isAdmin && (
+          {isStaff && (
             <NavItem icon={Shield} label={t('nav.admin')} to="/admin" onClick={() => setSidebarOpen(false)} />
           )}
         </List>

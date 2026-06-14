@@ -10,7 +10,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 export default function ProfileScreen() {
   const { t, i18n } = useTranslation();
   const { colors, preference } = useTheme();
-  const { user, signOut } = useAuth();
+  const { user, signOut, isPro } = useAuth();
   const router = useRouter();
 
   const themeLabel = preference === 'light' ? t('personalization.light')
@@ -54,6 +54,23 @@ export default function ProfileScreen() {
           </View>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: '700' }}>{user?.name}</Text>
           <Text style={{ color: colors.textMuted, fontSize: 13, marginTop: 2 }}>{user?.email}</Text>
+          <TouchableOpacity
+            onPress={() => !isPro && router.push('/(tabs)/profile/upgrade')}
+            activeOpacity={isPro ? 1 : 0.7}
+            style={{
+              marginTop: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 3,
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: isPro ? colors.primary : colors.border,
+              backgroundColor: isPro ? colors.primary + '20' : 'transparent',
+            }}
+          >
+            <Text style={{ color: isPro ? colors.primary : colors.textMuted, fontSize: 11, fontWeight: '700', letterSpacing: 0.4 }}>
+              {isPro ? t('plan.pro').toUpperCase() : `${t('plan.free').toUpperCase()} · ${t('plan.upgrade')}`}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Menu */}

@@ -4,9 +4,11 @@ import {
 } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
+import Constants from 'expo-constants';
 import { useTheme } from '../contexts/ThemeContext';
 import { api } from '../lib/api';
 import DateField from './DateField';
+import LocationPicker from './LocationPicker';
 import { FUEL_TYPES, fuelTypeInfo } from '@autotrackr/shared';
 import type { FuelRecord, FuelType, CreateFuelPayload, Vehicle } from '@autotrackr/shared';
 
@@ -14,8 +16,60 @@ interface Props {
   vehicleId: string;
   vehicle: Vehicle;
   record: FuelRecord | null;
+  records?: FuelRecord[];
   onSuccess: () => void;
   onClose: () => void;
+}
+
+function estimateFuel(
+  newQuantity: number,
+  currentMileage: number,
+  prevRecords: FuelRecord[],
+): { days: number; nextMileage: number } | null {
+  if (newQuantity <= 0 || prevRecords.length < 2) return null;
+
+  const sorted = [...prevRecords].sort((a, b) => b.mileage - a.mileage);
+  const r0 = sorted[0];
+  const r1 = sorted[1];
+
+  const kmDriven = r0.mileage - r1.mileage;
+  if (kmDriven <= 0) return null;
+
+  const prevQty = parseFloat(r1.quantity as any);
+  if (!prevQty || prevQty <= 0) return null;
+  const avgKmPerL = kmDriven / prevQty;
+
+  const daysBetween = Math.max(
+    1,
+    (new Date(r0.date).getTime() - new Date(r1.date).getTime()) / 86_400_000,
+  );
+  const dailyKm = kmDriven / daysBetween;
+  if (dailyKm <= 0) return null;
+
+  const days = Math.round((newQuantity * avgKmPerL) / dailyKm);
+  const nextMileage = currentMileage + Math.round(newQuantity * avgKmPerL);
+  return { days, nextMileage };
+}
+
+async function scheduleFuelNotification(days: number): Promise<void> {
+  // Notificações locais não funcionam no Expo Go (SDK 53+)
+  if ((Constants.appOwnership as string) === 'expo') return;
+  if (days <= 1 || days > 365) return;
+  try {
+    const Notifications = await import('expo-notifications');
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') return;
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '⛽ Combustível acabando',
+        body: 'Estimativa de combustível esgotado. Hora de abastecer!',
+      },
+      trigger: { seconds: days * 86_400, repeats: false } as any,
+    });
+  } catch {
+    // silently ignore — notification é opcional
+  }
 }
 
 interface FuelFormState {
@@ -32,7 +86,7 @@ interface FuelFormState {
 
 const today = () => new Date().toISOString().split('T')[0];
 
-export default function FuelForm({ vehicleId, vehicle, record, onSuccess, onClose }: Props) {
+export default function FuelForm({ vehicleId, vehicle, record, records = [], onSuccess, onClose }: Props) {
   const { t } = useTranslation();
   const { colors } = useTheme();
 
@@ -104,7 +158,13 @@ export default function FuelForm({ vehicleId, vehicle, record, onSuccess, onClos
       record
         ? api.put(`/vehicles/${vehicleId}/fuel/${record.id}`, payload)
         : api.post(`/vehicles/${vehicleId}/fuel`, payload),
-    onSuccess,
+    onSuccess: (_, payload) => {
+      if (!record) {
+        const result = estimateFuel(payload.quantity, payload.mileage, records);
+        if (result?.days) scheduleFuelNotification(result.days);
+      }
+      onSuccess();
+    },
     onError: (e: any) => {
       const msg = e?.response?.data?.message;
       setError(Array.isArray(msg) ? msg.join(' | ') : msg || t('common.saveError'));
@@ -220,11 +280,41 @@ export default function FuelForm({ vehicleId, vehicle, record, onSuccess, onClos
         />
       </View>
 
+      {/* Estimated fuel duration + next refuel mileage — aparece quando há ≥2 abastecimentos anteriores */}
+      {(() => {
+        const qty = parseFloat(form.quantity);
+        const mileage = parseInt(form.mileage, 10) || 0;
+        if (!isNaN(qty) && qty > 0 && records.length >= 2) {
+          const result = estimateFuel(qty, mileage, records);
+          if (result && result.days > 0) {
+            return (
+              <View style={{ gap: 6 }}>
+                <View style={{ backgroundColor: colors.primary + '15', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 15 }}>⛽</Text>
+                  <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>
+                    {t('fuel.estimatedDays', { days: result.days })}
+                  </Text>
+                </View>
+                <View style={{ backgroundColor: colors.warning + '15', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ fontSize: 15 }}>🛣️</Text>
+                  <Text style={{ color: colors.warning, fontSize: 13, fontWeight: '600' }}>
+                    {t('fuel.nextRefuelKm', { km: result.nextMileage.toLocaleString('pt-BR') })}
+                  </Text>
+                </View>
+              </View>
+            );
+          }
+        }
+        return null;
+      })()}
+
       {/* Station */}
-      <View>
-        <Text style={labelStyle}>{t('fuel.station')}</Text>
-        <TextInput style={inputStyle} value={form.station} onChangeText={v => setForm(p => ({ ...p, station: v }))} placeholderTextColor={colors.textMuted} placeholder="Ex: Posto Shell" />
-      </View>
+      <LocationPicker
+        label={t('fuel.station')}
+        value={form.station}
+        onChange={v => setForm(p => ({ ...p, station: v }))}
+        nearbyType="gas_station"
+      />
 
       {/* Full tank switch */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>

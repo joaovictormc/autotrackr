@@ -13,7 +13,7 @@ export class UsersService {
   findById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true, name: true, phone: true, role: true, createdAt: true },
+      select: { id: true, email: true, name: true, phone: true, role: true, plan: true, createdAt: true },
     });
   }
 
@@ -24,7 +24,7 @@ export class UsersService {
     const hashedPassword = await bcrypt.hash(data.password, 12);
     return this.prisma.user.create({
       data: { email: data.email, hashedPassword, name: data.name, phone: data.phone },
-      select: { id: true, email: true, name: true, phone: true, role: true, createdAt: true },
+      select: { id: true, email: true, name: true, phone: true, role: true, plan: true, createdAt: true },
     });
   }
 
@@ -32,7 +32,7 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data,
-      select: { id: true, email: true, name: true, phone: true, role: true },
+      select: { id: true, email: true, name: true, phone: true, role: true, plan: true },
     });
   }
 

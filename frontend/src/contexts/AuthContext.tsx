@@ -14,6 +14,9 @@ interface AuthContextType {
   userProfile: UserProfile | null;
   loading: boolean;
   isAdmin: boolean;
+  isOperator: boolean;
+  isStaff: boolean;
+  isPro: boolean;
   isAuthenticated: boolean;
   loadingError: boolean;
   signIn: (email: string, password: string) => Promise<void>;
@@ -122,6 +125,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isAdmin = user?.role === 'ADMIN';
+  const isOperator = user?.role === 'OPERADOR';
+  const isStaff = isAdmin || isOperator;
+  const isPro = user?.plan === 'PRO' || isAdmin || isOperator;
 
   return (
     <AuthContext.Provider
@@ -131,6 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         loadingError,
         isAdmin,
+        isOperator,
+        isStaff,
+        isPro,
         isAuthenticated: !!user,
         signIn,
         signUp,

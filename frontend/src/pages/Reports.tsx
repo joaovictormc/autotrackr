@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
+  Button,
   Card,
   CardContent,
   CircularProgress,
   Container,
   Grid,
+  ListItemIcon,
+  ListItemText,
+  Menu,
   MenuItem,
   Stack,
   Tab,
   Tabs,
   TextField,
+  Tooltip as MuiTooltip,
   Typography,
   useTheme,
 } from '@mui/material';
@@ -21,13 +26,17 @@ import {
   PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
 } from 'recharts';
-import { BarChart3, Fuel, TrendingUp, TrendingDown, Wallet } from 'lucide-react';
+import {
+  BarChart3, Fuel, TrendingUp, TrendingDown, Wallet, Download, Lock, FileText, FileSpreadsheet,
+} from 'lucide-react';
 import { useSnackbar } from 'notistack';
 import { useTranslation } from 'react-i18next';
 import { vehiclesApi, Vehicle } from '../api/vehicles.api';
 import { maintenanceApi, MaintenanceRecord } from '../api/maintenance.api';
 import { fuelApi, FuelRecord, FuelType, fuelTypeInfo } from '../api/fuel.api';
 import { revenueApi, RevenueRecord } from '../api/revenue.api';
+import { reportsApi, ReportType, ReportFormat } from '../api/reports.api';
+import { useAuth } from '../contexts/AuthContext';
 import StatCard from '../components/StatCard';
 
 const PERIODS = [
@@ -77,12 +86,28 @@ export default function Reports() {
   const numLocale = isPt ? 'pt-BR' : 'en-US';
   const money = (v: number) => brl(v, numLocale);
   const { enqueueSnackbar } = useSnackbar();
+  const { isPro } = useAuth();
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [vehicleId, setVehicleId] = useState('all');
   const [period, setPeriod] = useState('6m');
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [exportAnchor, setExportAnchor] = useState<null | HTMLElement>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async (type: ReportType, format: ReportFormat) => {
+    setExportAnchor(null);
+    if (vehicleId === 'all') return;
+    setExporting(true);
+    try {
+      await reportsApi.download(vehicleId, type, format);
+    } catch {
+      enqueueSnackbar(t('plan.exportError'), { variant: 'error' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([]);
   const [fuel, setFuel] = useState<FuelRecord[]>([]);
@@ -189,7 +214,49 @@ export default function Reports() {
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 3 }}>
         <BarChart3 size={24} />
-        <Typography variant="h5" fontWeight={700}>{t('reports.title')}</Typography>
+        <Typography variant="h5" fontWeight={700} sx={{ flexGrow: 1 }}>{t('reports.title')}</Typography>
+
+        {isPro ? (
+          <MuiTooltip title={vehicleId === 'all' ? t('plan.selectVehicleToExport') : ''}>
+            <span>
+              <Button
+                variant="outlined"
+                startIcon={exporting ? <CircularProgress size={16} /> : <Download size={16} />}
+                onClick={(e) => setExportAnchor(e.currentTarget)}
+                disabled={vehicleId === 'all' || exporting}
+              >
+                {t('plan.export')}
+              </Button>
+            </span>
+          </MuiTooltip>
+        ) : (
+          <MuiTooltip title={t('plan.proOnly')}>
+            <span>
+              <Button variant="outlined" startIcon={<Lock size={16} />} disabled>
+                {t('plan.export')}
+              </Button>
+            </span>
+          </MuiTooltip>
+        )}
+
+        <Menu anchorEl={exportAnchor} open={Boolean(exportAnchor)} onClose={() => setExportAnchor(null)}>
+          <MenuItem onClick={() => handleExport('maintenance', 'pdf')}>
+            <ListItemIcon><FileText size={16} /></ListItemIcon>
+            <ListItemText>{t('reports.maintenance')} · PDF</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => handleExport('maintenance', 'csv')}>
+            <ListItemIcon><FileSpreadsheet size={16} /></ListItemIcon>
+            <ListItemText>{t('reports.maintenance')} · CSV</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => handleExport('revenue', 'pdf')}>
+            <ListItemIcon><FileText size={16} /></ListItemIcon>
+            <ListItemText>{t('reports.revenueLabel')} · PDF</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => handleExport('revenue', 'csv')}>
+            <ListItemIcon><FileSpreadsheet size={16} /></ListItemIcon>
+            <ListItemText>{t('reports.revenueLabel')} · CSV</ListItemText>
+          </MenuItem>
+        </Menu>
       </Stack>
 
       {/* Filtros */}

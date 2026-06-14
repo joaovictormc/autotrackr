@@ -1,12 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
+import { Download, FileText, FileSpreadsheet } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../../../../contexts/ThemeContext';
 import { useVehicle } from '../../../../contexts/VehicleContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 import { api } from '../../../../lib/api';
+import { downloadReport, ReportType, ReportFormat } from '../../../../lib/reports';
 import ScreenHeader from '../../../../components/ScreenHeader';
+import FormSheet from '../../../../components/FormSheet';
 import type { FuelRecord, MaintenanceRecord, RevenueRecord } from '@autotrackr/shared';
 
 type Period = '30d' | '3m' | '6m' | '12m' | 'all';
@@ -26,8 +30,24 @@ export default function ReportsScreen() {
   const { t } = useTranslation();
   const { colors } = useTheme();
   const { vehicleId, vehicle } = useVehicle();
+  const { isPro } = useAuth();
   const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<Period>('3m');
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const runExport = async (type: ReportType, format: ReportFormat) => {
+    setExportOpen(false);
+    if (!vehicleId) return;
+    setExporting(true);
+    try {
+      await downloadReport(vehicleId, type, format);
+    } catch {
+      Alert.alert(t('plan.exportError'));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const { data: fuel = [], isLoading: l1 } = useQuery({
     queryKey: ['fuel', vehicleId],
@@ -81,6 +101,17 @@ export default function ReportsScreen() {
       <ScreenHeader
         title={t('reports.title')}
         subtitle={vehicle ? `${vehicle.brand.name} ${vehicle.model.name}` : undefined}
+        right={
+          isPro && vehicleId ? (
+            <TouchableOpacity
+              onPress={() => setExportOpen(true)}
+              disabled={exporting}
+              style={{ backgroundColor: colors.primary, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', opacity: exporting ? 0.6 : 1 }}
+            >
+              {exporting ? <ActivityIndicator color="#fff" size="small" /> : <Download size={18} color="#fff" />}
+            </TouchableOpacity>
+          ) : undefined
+        }
       />
 
       {!vehicleId ? (
@@ -182,6 +213,29 @@ export default function ReportsScreen() {
           )}
         </ScrollView>
       )}
+
+      <FormSheet visible={exportOpen} onClose={() => setExportOpen(false)}>
+        <View style={{ padding: 16, gap: 8 }}>
+          <Text style={{ color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 4 }}>
+            {t('plan.export')}
+          </Text>
+          {([
+            { type: 'maintenance' as ReportType, format: 'pdf' as ReportFormat, label: `${t('reports.maintenance')} · PDF`, Icon: FileText },
+            { type: 'maintenance' as ReportType, format: 'csv' as ReportFormat, label: `${t('reports.maintenance')} · CSV`, Icon: FileSpreadsheet },
+            { type: 'revenue' as ReportType, format: 'pdf' as ReportFormat, label: `${t('reports.revenueLabel')} · PDF`, Icon: FileText },
+            { type: 'revenue' as ReportType, format: 'csv' as ReportFormat, label: `${t('reports.revenueLabel')} · CSV`, Icon: FileSpreadsheet },
+          ]).map(({ type, format, label, Icon }) => (
+            <TouchableOpacity
+              key={`${type}-${format}`}
+              onPress={() => runExport(type, format)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: colors.border }}
+            >
+              <Icon size={18} color={colors.textMuted} strokeWidth={1.8} />
+              <Text style={{ color: colors.text, fontSize: 15 }}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </FormSheet>
     </View>
   );
 }

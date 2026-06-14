@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check, Trash2, Star, Car, Plus } from 'lucide-react-native';
+import { Check, Trash2, Star, Car, Plus, Pencil } from 'lucide-react-native';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTheme } from '../../../../contexts/ThemeContext';
@@ -10,6 +10,8 @@ import { api } from '../../../../lib/api';
 import ScreenHeader from '../../../../components/ScreenHeader';
 import FormSheet from '../../../../components/FormSheet';
 import AddVehicleForm from '../../../../components/AddVehicleForm';
+import AdInterstitial from '../../../../components/AdInterstitial';
+import { useAdInterstitial } from '../../../../hooks/useAdInterstitial';
 import type { Vehicle } from '@autotrackr/shared';
 
 export default function VehiclesScreen() {
@@ -19,7 +21,10 @@ export default function VehiclesScreen() {
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const openAdd = () => setSheetOpen(true);
+  const [editing, setEditing] = useState<Vehicle | null>(null);
+  const { adVisible, triggerAd, dismissAd, goToUpgrade } = useAdInterstitial();
+  const openAdd = () => { setEditing(null); setSheetOpen(true); };
+  const openEdit = (v: Vehicle) => { setEditing(v); setSheetOpen(true); };
   const closeSheet = () => setSheetOpen(false);
 
   const deleteMutation = useMutation({
@@ -74,6 +79,9 @@ export default function VehiclesScreen() {
             </View>
           </View>
         )}
+        <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Pencil size={16} color={colors.primary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => handleDelete(item)} style={{ padding: 6 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
           <Trash2 size={16} color={colors.danger} />
         </TouchableOpacity>
@@ -113,10 +121,18 @@ export default function VehiclesScreen() {
 
       <FormSheet visible={sheetOpen} onClose={closeSheet}>
         <AddVehicleForm
-          onSuccess={() => { closeSheet(); qc.invalidateQueries({ queryKey: ['vehicles'] }); }}
+          vehicle={editing}
+          onSuccess={() => {
+            const isNew = !editing;
+            closeSheet();
+            qc.invalidateQueries({ queryKey: ['vehicles'] });
+            if (isNew) triggerAd();
+          }}
           onClose={closeSheet}
         />
       </FormSheet>
+
+      <AdInterstitial visible={adVisible} onDismiss={dismissAd} onUpgrade={goToUpgrade} />
     </View>
   );
 }

@@ -6,6 +6,7 @@ import {
   IconButton,
   Box,
   useTheme,
+  alpha,
 } from '@mui/material';
 import { Settings, User } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -40,9 +41,8 @@ export default function AdminAppBar() {
       elevation={0}
       sx={{
         backdropFilter: 'blur(6px)',
-        backgroundColor: theme.palette.mode === 'light' 
-          ? 'rgba(255, 255, 255, 0.8)'
-          : 'rgba(30, 30, 30, 0.8)',
+        backgroundColor: alpha(theme.palette.background.paper, 0.8),
+        color: theme.palette.text.primary,
         borderBottom: `1px solid ${theme.palette.divider}`,
       }}
     >
@@ -54,9 +54,7 @@ export default function AdminAppBar() {
           sx={{
             flexGrow: 1,
             fontWeight: 600,
-            background: theme.palette.mode === 'light'
-              ? 'linear-gradient(45deg, #1976d2, #2196f3)'
-              : 'linear-gradient(45deg, #90caf9, #42a5f5)',
+            background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}
